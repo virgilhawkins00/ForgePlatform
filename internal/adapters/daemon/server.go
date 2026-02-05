@@ -17,7 +17,7 @@ import (
 )
 
 // Version is the current Forge version.
-const Version = "1.0.0"
+const Version = "1.1.0"
 
 // Server represents the Forge daemon server.
 type Server struct {

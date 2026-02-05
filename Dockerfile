@@ -41,14 +41,17 @@ USER forge
 # Set working directory
 WORKDIR /home/forge
 
-# Expose ports (if needed for future HTTP/gRPC API)
-EXPOSE 8080
+# Expose ports for HTTP API and metrics
+EXPOSE 8080 9090
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD forge status || exit 1
+# Health check using liveness probe
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD forge health liveness || exit 1
 
-# Default command
+# Environment variables
+ENV FORGE_DATA_DIR=/home/forge/.forge/data
+ENV FORGE_LOG_LEVEL=info
+
+# Default command - start in foreground mode
 ENTRYPOINT ["forge"]
-CMD ["--help"]
-
+CMD ["start", "--foreground"]

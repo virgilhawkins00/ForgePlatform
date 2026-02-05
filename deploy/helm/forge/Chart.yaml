@@ -1,0 +1,19 @@
+apiVersion: v2
+name: forge
+description: ForgePlatform - Unified Engineering Platform
+type: application
+version: 1.1.0
+appVersion: "1.1.0"
+keywords:
+  - forge
+  - engineering
+  - platform
+  - metrics
+  - observability
+  - ai
+home: https://github.com/forge-platform/forge
+sources:
+  - https://github.com/forge-platform/forge
+maintainers:
+  - name: ForgePlatform Team
+    email: team@forgeplatform.dev

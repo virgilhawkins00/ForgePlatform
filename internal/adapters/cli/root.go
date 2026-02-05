@@ -64,6 +64,7 @@ func init() {
 	rootCmd.AddCommand(userCmd)
 	rootCmd.AddCommand(healthCmd)
 	rootCmd.AddCommand(backupCmd)
+	rootCmd.AddCommand(cloudCmd)
 }
 
 // initializeConfig reads in config file and ENV variables if set.

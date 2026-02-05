@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "forge.fullname" . }}-config
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+data:
+  FORGE_LOG_LEVEL: {{ .Values.forge.logLevel | quote }}
+  FORGE_DATA_DIR: {{ .Values.forge.dataDir | quote }}
+  {{- if .Values.forge.gcp.enabled }}
+  GCP_PROJECT_ID: {{ .Values.forge.gcp.projectId | quote }}
+  GCP_REGION: {{ .Values.forge.gcp.region | quote }}
+  GCP_METRIC_PREFIX: {{ .Values.forge.gcp.metricPrefix | quote }}
+  {{- end }}
+
