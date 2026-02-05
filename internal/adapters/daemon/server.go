@@ -26,6 +26,7 @@ type Server struct {
 	metricSvc   *services.MetricService
 	ragSvc      *services.RAGService
 	workflowSvc *services.WorkflowService
+	alertSvc    *services.AlertService
 	aiProvider  ports.AIProvider
 	startedAt   time.Time
 	stopCh      chan struct{}
@@ -79,6 +80,9 @@ func NewServer(config Config, logger ports.Logger) (*Server, error) {
 	workflowSvc.RegisterAction(domain.StepTypeMetric, services.NewMetricAction(metricRepo))
 	workflowSvc.RegisterAction(domain.StepTypeTask, services.NewTaskAction(taskRepo))
 
+	// Initialize alert service (with nil repos for now - can be enhanced later)
+	alertSvc := services.NewAlertService(nil, nil, nil, nil, metricRepo, logger)
+
 	return &Server{
 		config:      config,
 		db:          db,
@@ -87,6 +91,7 @@ func NewServer(config Config, logger ports.Logger) (*Server, error) {
 		metricSvc:   metricSvc,
 		ragSvc:      ragSvc,
 		workflowSvc: workflowSvc,
+		alertSvc:    alertSvc,
 		stopCh:      make(chan struct{}),
 	}, nil
 }

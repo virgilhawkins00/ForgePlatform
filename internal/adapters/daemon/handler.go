@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/forge-platform/forge/internal/core/domain"
+	"github.com/forge-platform/forge/internal/core/ports"
 	"github.com/forge-platform/forge/internal/core/services"
+	"github.com/google/uuid"
 )
 
 // Request represents a daemon RPC request.
@@ -204,6 +206,34 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) (interface{}, 
 
 	case "workflow.history":
 		return s.handleWorkflowHistory(ctx, req.Params)
+
+	// Alert handlers
+	case "alert.rule.list":
+		return s.handleAlertRuleList(ctx)
+
+	case "alert.rule.create":
+		return s.handleAlertRuleCreate(ctx, req.Params)
+
+	case "alert.rule.delete":
+		return s.handleAlertRuleDelete(ctx, req.Params)
+
+	case "alert.list.active":
+		return s.handleAlertListActive(ctx)
+
+	case "alert.history":
+		return s.handleAlertHistory(ctx, req.Params)
+
+	case "alert.ack":
+		return s.handleAlertAck(ctx, req.Params)
+
+	case "alert.silence.create":
+		return s.handleAlertSilenceCreate(ctx, req.Params)
+
+	case "alert.silence.list":
+		return s.handleAlertSilenceList(ctx)
+
+	case "alert.channel.list":
+		return s.handleAlertChannelList(ctx)
 
 	default:
 		return nil, fmt.Errorf("unknown method: %s", req.Method)
@@ -623,4 +653,306 @@ func (s *Server) sendError(conn net.Conn, id, errMsg string) {
 	respBytes, _ := json.Marshal(resp)
 	respBytes = append(respBytes, '\n')
 	conn.Write(respBytes)
+}
+
+// handleAlertRuleList lists all alert rules.
+func (s *Server) handleAlertRuleList(ctx context.Context) (interface{}, error) {
+	if s.alertSvc == nil {
+		return map[string]interface{}{"rules": []interface{}{}}, nil
+	}
+
+	rules, err := s.alertSvc.ListRules(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(rules))
+	for i, r := range rules {
+		result[i] = map[string]interface{}{
+			"id":          r.ID.String(),
+			"name":        r.Name,
+			"metric_name": r.MetricName,
+			"condition":   string(r.Condition),
+			"threshold":   r.Threshold,
+			"severity":    string(r.Severity),
+			"duration":    r.Duration.String(),
+			"interval":    r.Interval.String(),
+			"enabled":     r.Enabled,
+			"channels":    r.Channels,
+			"labels":      r.Labels,
+		}
+	}
+	return map[string]interface{}{"rules": result}, nil
+}
+
+// handleAlertRuleCreate creates a new alert rule.
+func (s *Server) handleAlertRuleCreate(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.alertSvc == nil {
+		return nil, fmt.Errorf("alert service not available")
+	}
+
+	name, _ := params["name"].(string)
+	metricName, _ := params["metric_name"].(string)
+	conditionStr, _ := params["condition"].(string)
+	threshold, _ := params["threshold"].(float64)
+	severityStr, _ := params["severity"].(string)
+	durationStr, _ := params["duration"].(string)
+	intervalStr, _ := params["interval"].(string)
+
+	if name == "" || metricName == "" {
+		return nil, fmt.Errorf("name and metric_name are required")
+	}
+
+	duration, _ := time.ParseDuration(durationStr)
+	if duration == 0 {
+		duration = time.Minute
+	}
+
+	interval, _ := time.ParseDuration(intervalStr)
+	if interval == 0 {
+		interval = time.Minute
+	}
+
+	condition := domain.RuleConditionType(conditionStr)
+	if condition == "" {
+		condition = domain.ConditionThresholdAbove
+	}
+
+	severity := domain.AlertSeverity(severityStr)
+	if severity == "" {
+		severity = domain.AlertSeverityWarning
+	}
+
+	rule := domain.NewAlertRule(name, metricName, condition, threshold, severity)
+	rule.Duration = duration
+	rule.Interval = interval
+
+	err := s.alertSvc.CreateRule(ctx, rule)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"id":   rule.ID.String(),
+		"name": rule.Name,
+	}, nil
+}
+
+// handleAlertRuleDelete deletes an alert rule.
+func (s *Server) handleAlertRuleDelete(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.alertSvc == nil {
+		return nil, fmt.Errorf("alert service not available")
+	}
+
+	idStr, _ := params["id"].(string)
+	if idStr == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+
+	err = s.alertSvc.DeleteRule(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"status": "deleted"}, nil
+}
+
+
+// handleAlertListActive lists active alerts.
+func (s *Server) handleAlertListActive(ctx context.Context) (interface{}, error) {
+	if s.alertSvc == nil {
+		return map[string]interface{}{"alerts": []interface{}{}}, nil
+	}
+
+	alerts, err := s.alertSvc.ListActiveAlerts(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(alerts))
+	for i, a := range alerts {
+		result[i] = s.alertToMap(a)
+	}
+	return map[string]interface{}{"alerts": result}, nil
+}
+
+// handleAlertHistory returns alert history.
+func (s *Server) handleAlertHistory(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.alertSvc == nil {
+		return map[string]interface{}{"alerts": []interface{}{}}, nil
+	}
+
+	limit, _ := params["limit"].(float64)
+	if limit == 0 {
+		limit = 50
+	}
+	stateStr, _ := params["state"].(string)
+	severityStr, _ := params["severity"].(string)
+
+	filter := ports.AlertFilter{
+		Limit: int(limit),
+	}
+	if stateStr != "" {
+		filter.State = (*domain.AlertState)(&stateStr)
+	}
+	if severityStr != "" {
+		filter.Severity = (*domain.AlertSeverity)(&severityStr)
+	}
+
+	alerts, err := s.alertSvc.ListAlerts(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(alerts))
+	for i, a := range alerts {
+		result[i] = s.alertToMap(a)
+	}
+	return map[string]interface{}{"alerts": result}, nil
+}
+
+// handleAlertAck acknowledges an alert.
+func (s *Server) handleAlertAck(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.alertSvc == nil {
+		return nil, fmt.Errorf("alert service not available")
+	}
+
+	idStr, _ := params["id"].(string)
+	comment, _ := params["comment"].(string)
+	if idStr == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+
+	err = s.alertSvc.AcknowledgeAlert(ctx, id, "daemon-user", comment)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"status": "acknowledged"}, nil
+}
+
+// handleAlertSilenceCreate creates a new silence.
+func (s *Server) handleAlertSilenceCreate(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.alertSvc == nil {
+		return nil, fmt.Errorf("alert service not available")
+	}
+
+	matchersRaw, _ := params["matchers"].(map[string]interface{})
+	durationStr, _ := params["duration"].(string)
+	comment, _ := params["comment"].(string)
+
+	matchers := make(map[string]string)
+	for k, v := range matchersRaw {
+		matchers[k] = fmt.Sprintf("%v", v)
+	}
+
+	duration, _ := time.ParseDuration(durationStr)
+	if duration == 0 {
+		duration = time.Hour
+	}
+
+	now := time.Now()
+	silence := &domain.Silence{
+		ID:        uuid.New(),
+		Matchers:  matchers,
+		StartsAt:  now,
+		EndsAt:    now.Add(duration),
+		Comment:   comment,
+		CreatedBy: "daemon-user",
+		CreatedAt: now,
+	}
+
+	err := s.alertSvc.CreateSilence(ctx, silence)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"id":        silence.ID.String(),
+		"starts_at": silence.StartsAt.Format(time.RFC3339),
+		"ends_at":   silence.EndsAt.Format(time.RFC3339),
+	}, nil
+}
+
+// handleAlertSilenceList lists active silences.
+func (s *Server) handleAlertSilenceList(ctx context.Context) (interface{}, error) {
+	if s.alertSvc == nil {
+		return map[string]interface{}{"silences": []interface{}{}}, nil
+	}
+
+	silences, err := s.alertSvc.ListSilences(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(silences))
+	for i, sil := range silences {
+		result[i] = map[string]interface{}{
+			"id":         sil.ID.String(),
+			"matchers":   sil.Matchers,
+			"starts_at":  sil.StartsAt.Format(time.RFC3339),
+			"ends_at":    sil.EndsAt.Format(time.RFC3339),
+			"comment":    sil.Comment,
+			"created_by": sil.CreatedBy,
+		}
+	}
+	return map[string]interface{}{"silences": result}, nil
+}
+
+// handleAlertChannelList lists notification channels.
+func (s *Server) handleAlertChannelList(ctx context.Context) (interface{}, error) {
+	if s.alertSvc == nil {
+		return map[string]interface{}{"channels": []interface{}{}}, nil
+	}
+
+	channels, err := s.alertSvc.ListChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(channels))
+	for i, ch := range channels {
+		result[i] = map[string]interface{}{
+			"id":      ch.ID.String(),
+			"name":    ch.Name,
+			"type":    string(ch.Type),
+			"enabled": ch.Enabled,
+		}
+	}
+	return map[string]interface{}{"channels": result}, nil
+}
+
+// alertToMap converts an alert to a map for JSON serialization.
+func (s *Server) alertToMap(a *domain.Alert) map[string]interface{} {
+	result := map[string]interface{}{
+		"id":          a.ID.String(),
+		"rule_id":     a.RuleID.String(),
+		"rule_name":   a.RuleName,
+		"state":       string(a.State),
+		"severity":    string(a.Severity),
+		"message":     a.Message,
+		"value":       a.Value,
+		"threshold":   a.Threshold,
+		"starts_at":   a.StartsAt.Format(time.RFC3339),
+		"fingerprint": a.Fingerprint,
+		"labels":      a.Labels,
+	}
+	if a.EndsAt != nil {
+		result["ends_at"] = a.EndsAt.Format(time.RFC3339)
+	}
+	if a.AcknowledgedAt != nil {
+		result["acknowledged_at"] = a.AcknowledgedAt.Format(time.RFC3339)
+		result["acknowledged_by"] = a.AcknowledgedBy
+	}
+	return result
 }

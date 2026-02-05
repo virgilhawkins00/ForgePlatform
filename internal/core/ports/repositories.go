@@ -245,3 +245,114 @@ type ExecutionFilter struct {
 	Limit        int
 	Offset       int
 }
+
+// AlertRuleRepository defines the interface for alert rule persistence.
+type AlertRuleRepository interface {
+	// Create persists a new alert rule.
+	Create(ctx context.Context, rule *domain.AlertRule) error
+
+	// GetByID retrieves an alert rule by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.AlertRule, error)
+
+	// GetByName retrieves an alert rule by its name.
+	GetByName(ctx context.Context, name string) (*domain.AlertRule, error)
+
+	// Update updates an existing alert rule.
+	Update(ctx context.Context, rule *domain.AlertRule) error
+
+	// Delete removes an alert rule.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// List retrieves all alert rules.
+	List(ctx context.Context) ([]*domain.AlertRule, error)
+
+	// ListEnabled retrieves all enabled alert rules.
+	ListEnabled(ctx context.Context) ([]*domain.AlertRule, error)
+
+	// ListDue retrieves rules that are due for evaluation.
+	ListDue(ctx context.Context, now time.Time) ([]*domain.AlertRule, error)
+}
+
+// AlertRepository defines the interface for alert instance persistence.
+type AlertRepository interface {
+	// Create persists a new alert.
+	Create(ctx context.Context, alert *domain.Alert) error
+
+	// GetByID retrieves an alert by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.Alert, error)
+
+	// GetByFingerprint retrieves an alert by its fingerprint.
+	GetByFingerprint(ctx context.Context, fingerprint string) (*domain.Alert, error)
+
+	// Update updates an existing alert.
+	Update(ctx context.Context, alert *domain.Alert) error
+
+	// Delete removes an alert.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// List retrieves alerts with optional filtering.
+	List(ctx context.Context, filter AlertFilter) ([]*domain.Alert, error)
+
+	// ListActive retrieves all active (firing or pending) alerts.
+	ListActive(ctx context.Context) ([]*domain.Alert, error)
+
+	// CountByState returns alert counts grouped by state.
+	CountByState(ctx context.Context) (map[domain.AlertState]int64, error)
+}
+
+// AlertFilter defines filtering options for alert queries.
+type AlertFilter struct {
+	RuleID    *uuid.UUID
+	State     *domain.AlertState
+	Severity  *domain.AlertSeverity
+	Labels    map[string]string
+	StartTime *time.Time
+	EndTime   *time.Time
+	Limit     int
+	Offset    int
+}
+
+// NotificationChannelRepository defines the interface for notification channel persistence.
+type NotificationChannelRepository interface {
+	// Create persists a new notification channel.
+	Create(ctx context.Context, channel *domain.NotificationChannel) error
+
+	// GetByID retrieves a channel by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.NotificationChannel, error)
+
+	// GetByName retrieves a channel by its name.
+	GetByName(ctx context.Context, name string) (*domain.NotificationChannel, error)
+
+	// Update updates an existing channel.
+	Update(ctx context.Context, channel *domain.NotificationChannel) error
+
+	// Delete removes a channel.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// List retrieves all notification channels.
+	List(ctx context.Context) ([]*domain.NotificationChannel, error)
+
+	// ListEnabled retrieves all enabled channels.
+	ListEnabled(ctx context.Context) ([]*domain.NotificationChannel, error)
+}
+
+// SilenceRepository defines the interface for silence persistence.
+type SilenceRepository interface {
+	// Create persists a new silence.
+	Create(ctx context.Context, silence *domain.Silence) error
+
+	// GetByID retrieves a silence by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.Silence, error)
+
+	// Update updates an existing silence.
+	Update(ctx context.Context, silence *domain.Silence) error
+
+	// Delete removes a silence.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// List retrieves all silences.
+	List(ctx context.Context) ([]*domain.Silence, error)
+
+	// ListActive retrieves all active silences.
+	ListActive(ctx context.Context, now time.Time) ([]*domain.Silence, error)
+}

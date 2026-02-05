@@ -15,6 +15,7 @@ const (
 	TabDashboard Tab = iota
 	TabTasks
 	TabWorkflows
+	TabAlerts
 	TabMetrics
 	TabPlugins
 	TabLogs
@@ -22,7 +23,7 @@ const (
 )
 
 func (t Tab) String() string {
-	return []string{"Dashboard", "Tasks", "Workflows", "Metrics", "Plugins", "Logs", "AI"}[t]
+	return []string{"Dashboard", "Tasks", "Workflows", "Alerts", "Metrics", "Plugins", "Logs", "AI"}[t]
 }
 
 // Model represents the main TUI state.
@@ -36,6 +37,7 @@ type Model struct {
 	dashboard       *DashboardModel
 	taskManager     *TaskManagerModel
 	workflowManager *WorkflowManagerModel
+	alertViewer     *AlertViewer
 	logViewer       *LogViewerModel
 	pluginManager   *PluginManagerModel
 	initialized     bool
@@ -109,12 +111,13 @@ var defaultKeyMap = keyMap{
 func NewModel() Model {
 	return Model{
 		activeTab:       TabDashboard,
-		tabs:            []Tab{TabDashboard, TabTasks, TabWorkflows, TabMetrics, TabPlugins, TabLogs, TabAI},
+		tabs:            []Tab{TabDashboard, TabTasks, TabWorkflows, TabAlerts, TabMetrics, TabPlugins, TabLogs, TabAI},
 		help:            help.New(),
 		keys:            defaultKeyMap,
 		dashboard:       NewDashboardModel(),
 		taskManager:     NewTaskManagerModel(),
 		workflowManager: NewWorkflowManager(),
+		alertViewer:     NewAlertViewer(),
 		logViewer:       NewLogViewerModel(),
 		pluginManager:   NewPluginManagerModel(),
 	}
@@ -127,6 +130,7 @@ func (m Model) Init() tea.Cmd {
 		m.dashboard.Init(),
 		m.taskManager.Init(),
 		m.workflowManager.Init(),
+		m.alertViewer.Init(),
 		m.logViewer.Init(),
 		m.pluginManager.Init(),
 	)
@@ -163,6 +167,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.taskManager, cmd = m.taskManager.Update(msg)
 	case TabWorkflows:
 		m.workflowManager, cmd = m.workflowManager.Update(msg)
+	case TabAlerts:
+		m.alertViewer, cmd = m.alertViewer.Update(msg)
 	case TabLogs:
 		m.logViewer, cmd = m.logViewer.Update(msg)
 	case TabPlugins:
@@ -192,6 +198,9 @@ func (m Model) View() string {
 	case TabWorkflows:
 		m.workflowManager.SetSize(m.width, contentHeight)
 		content = m.workflowManager.View()
+	case TabAlerts:
+		m.alertViewer.SetSize(m.width, contentHeight)
+		content = m.alertViewer.View()
 	case TabMetrics:
 		content = m.renderMetricsTab()
 	case TabPlugins:
