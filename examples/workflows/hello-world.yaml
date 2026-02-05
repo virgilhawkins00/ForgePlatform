@@ -1,0 +1,57 @@
+# Hello World Workflow
+# A simple workflow example demonstrating basic features
+
+name: hello-world
+description: A simple Hello World workflow demonstrating Forge workflow capabilities
+version: 1.0.0
+
+# Environment variables available to all steps
+env:
+  GREETING: "Hello from Forge!"
+
+# Workflow-level timeout (optional)
+timeout: 5m
+
+steps:
+  # Step 1: Print a greeting message
+  - id: greet
+    name: Print Greeting
+    description: Prints a greeting message to stdout
+    type: shell
+    config:
+      command: echo "$GREETING"
+    timeout: 30s
+
+  # Step 2: Check system info (depends on step 1)
+  - id: system-info
+    name: Get System Info
+    description: Retrieves basic system information
+    type: shell
+    config:
+      command: uname -a
+    depends_on:
+      - greet
+    timeout: 30s
+
+  # Step 3: List current directory
+  - id: list-files
+    name: List Directory
+    description: Lists files in the current directory
+    type: shell
+    config:
+      command: ls -la
+    depends_on:
+      - greet
+    timeout: 30s
+
+  # Step 4: Summary (depends on both parallel steps)
+  - id: summary
+    name: Print Summary
+    description: Prints workflow completion summary
+    type: shell
+    config:
+      command: echo "Workflow completed successfully!"
+    depends_on:
+      - system-info
+      - list-files
+    timeout: 30s

@@ -1,0 +1,71 @@
+# HTTP Health Check Workflow
+# A workflow that performs health checks on multiple endpoints
+
+name: http-health-check
+description: Performs HTTP health checks on configured endpoints
+version: 1.0.0
+
+env:
+  CHECK_INTERVAL: "5s"
+  
+timeout: 10m
+
+steps:
+  # Step 1: Check primary endpoint
+  - id: check-primary
+    name: Check Primary Endpoint
+    description: Performs health check on the primary service endpoint
+    type: http
+    config:
+      url: "https://httpbin.org/get"
+      method: GET
+      headers:
+        Accept: "application/json"
+        User-Agent: "Forge-HealthCheck/1.0"
+      timeout: 30s
+    retries: 3
+    retry_delay: 5s
+    timeout: 1m
+
+  # Step 2: Check secondary endpoint (parallel with step 1)
+  - id: check-secondary
+    name: Check Secondary Endpoint
+    description: Performs health check on the secondary service endpoint
+    type: http
+    config:
+      url: "https://httpbin.org/status/200"
+      method: GET
+    retries: 3
+    retry_delay: 5s
+    continue_on_error: true
+    timeout: 1m
+
+  # Step 3: Analyze results
+  - id: analyze
+    name: Analyze Health Results
+    description: Analyzes the health check results
+    type: task
+    config:
+      command: |
+        echo "Health check analysis:"
+        echo "- Primary: OK"
+        echo "- Secondary: OK"
+        echo "All endpoints healthy!"
+    depends_on:
+      - check-primary
+      - check-secondary
+    timeout: 30s
+
+  # Step 4: Report results (AI-powered summary)
+  - id: report
+    name: Generate Report
+    description: Generates an AI-powered health report summary
+    type: ai
+    config:
+      prompt: "Summarize the health check results: All endpoints are healthy and responding normally."
+      model: "qwen3:8b"
+    depends_on:
+      - analyze
+    continue_on_error: true
+    timeout: 2m
+

@@ -1,0 +1,70 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+coverage.txt
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Forge data directories (local development)
+.forge/
+*.db
+*.db-shm
+*.db-wal
+
+# Plugin builds
+*.wasm
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Build artifacts
+dist/
+release/
+
+# Profiling
+*.prof
+*.pprof
+
+# Debug
+debug/
+__debug_bin*
+
+# Project-specific files to ignore (internal planning docs)
+ForgePlatform.md
+ROADMAP.md
+ARCHITECTURE.md
