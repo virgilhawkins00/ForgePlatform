@@ -57,6 +57,11 @@ func init() {
 	rootCmd.AddCommand(aiCmd)
 	rootCmd.AddCommand(uiCmd)
 	rootCmd.AddCommand(workflowCmd)
+	rootCmd.AddCommand(alertCmd)
+	rootCmd.AddCommand(traceCmd)
+	rootCmd.AddCommand(logCmd)
+	rootCmd.AddCommand(profileCmd)
+	rootCmd.AddCommand(userCmd)
 }
 
 // initializeConfig reads in config file and ENV variables if set.

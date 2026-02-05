@@ -30,6 +30,7 @@ type Server struct {
 	traceSvc    *services.TraceService
 	logSvc      *services.LogService
 	profileSvc  *services.ProfileService
+	authSvc     *services.AuthService
 	aiProvider  ports.AIProvider
 	startedAt   time.Time
 	stopCh      chan struct{}
@@ -91,6 +92,9 @@ func NewServer(config Config, logger ports.Logger) (*Server, error) {
 	logSvc := services.NewLogService(nil, nil, nil, metricRepo, logger)
 	profileSvc := services.NewProfileService(nil, filepath.Join(config.DataDir, "profiles"), logger)
 
+	// Initialize auth service
+	authSvc := services.NewAuthService(nil, nil, nil, nil, services.DefaultAuthConfig(), logger)
+
 	return &Server{
 		config:      config,
 		db:          db,
@@ -103,6 +107,7 @@ func NewServer(config Config, logger ports.Logger) (*Server, error) {
 		traceSvc:    traceSvc,
 		logSvc:      logSvc,
 		profileSvc:  profileSvc,
+		authSvc:     authSvc,
 		stopCh:      make(chan struct{}),
 	}, nil
 }

@@ -568,3 +568,122 @@ type ProfileRepository interface {
 	// DeleteBefore removes profiles older than the given timestamp.
 	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
 }
+
+// ============================================================================
+// Authentication Repositories
+// ============================================================================
+
+// UserFilter defines filtering options for user queries.
+type UserFilter struct {
+	Username string
+	Email    string
+	Role     domain.UserRole
+	Status   domain.UserStatus
+	Limit    int
+	Offset   int
+}
+
+// UserRepository defines the interface for user persistence.
+type UserRepository interface {
+	// Create persists a new user.
+	Create(ctx context.Context, user *domain.User) error
+
+	// GetByID retrieves a user by their ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
+
+	// GetByUsername retrieves a user by username.
+	GetByUsername(ctx context.Context, username string) (*domain.User, error)
+
+	// GetByEmail retrieves a user by email.
+	GetByEmail(ctx context.Context, email string) (*domain.User, error)
+
+	// Update updates an existing user.
+	Update(ctx context.Context, user *domain.User) error
+
+	// Delete removes a user.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// List retrieves users with optional filtering.
+	List(ctx context.Context, filter UserFilter) ([]*domain.User, error)
+
+	// Count returns the total number of users.
+	Count(ctx context.Context) (int64, error)
+}
+
+// APIKeyRepository defines the interface for API key persistence.
+type APIKeyRepository interface {
+	// Create persists a new API key.
+	Create(ctx context.Context, key *domain.APIKey) error
+
+	// GetByID retrieves an API key by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.APIKey, error)
+
+	// GetByPrefix retrieves API keys matching a prefix.
+	GetByPrefix(ctx context.Context, prefix string) ([]*domain.APIKey, error)
+
+	// GetByUserID retrieves all API keys for a user.
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*domain.APIKey, error)
+
+	// Update updates an existing API key.
+	Update(ctx context.Context, key *domain.APIKey) error
+
+	// Delete removes an API key.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// DeleteByUserID removes all API keys for a user.
+	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
+
+	// DeleteExpired removes expired API keys.
+	DeleteExpired(ctx context.Context) (int64, error)
+}
+
+// SessionRepository defines the interface for session persistence.
+type SessionRepository interface {
+	// Create persists a new session.
+	Create(ctx context.Context, session *domain.Session) error
+
+	// GetByID retrieves a session by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.Session, error)
+
+	// GetByUserID retrieves all sessions for a user.
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*domain.Session, error)
+
+	// Update updates an existing session.
+	Update(ctx context.Context, session *domain.Session) error
+
+	// Delete removes a session.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// DeleteByUserID removes all sessions for a user.
+	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
+
+	// DeleteExpired removes expired sessions.
+	DeleteExpired(ctx context.Context) (int64, error)
+}
+
+// AuditLogFilter defines filtering options for audit log queries.
+type AuditLogFilter struct {
+	UserID    *uuid.UUID
+	Action    string
+	Resource  string
+	Success   *bool
+	StartTime time.Time
+	EndTime   time.Time
+	Limit     int
+	Offset    int
+}
+
+// AuditLogRepository defines the interface for audit log persistence.
+type AuditLogRepository interface {
+	// Create persists a new audit log entry.
+	Create(ctx context.Context, log *domain.AuditLog) error
+
+	// GetByID retrieves an audit log entry by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.AuditLog, error)
+
+	// List retrieves audit log entries with optional filtering.
+	List(ctx context.Context, filter AuditLogFilter) ([]*domain.AuditLog, error)
+
+	// DeleteBefore removes audit log entries older than the given timestamp.
+	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
+}

@@ -292,6 +292,31 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) (interface{}, 
 	case "profile.memory":
 		return s.handleProfileMemory(ctx)
 
+	// User management
+	case "user.create":
+		return s.handleUserCreate(ctx, req.Params)
+
+	case "user.list":
+		return s.handleUserList(ctx, req.Params)
+
+	case "user.get":
+		return s.handleUserGet(ctx, req.Params)
+
+	case "user.delete":
+		return s.handleUserDelete(ctx, req.Params)
+
+	case "apikey.create":
+		return s.handleAPIKeyCreate(ctx, req.Params)
+
+	case "apikey.list":
+		return s.handleAPIKeyList(ctx, req.Params)
+
+	case "apikey.revoke":
+		return s.handleAPIKeyRevoke(ctx, req.Params)
+
+	case "audit.list":
+		return s.handleAuditList(ctx, req.Params)
+
 	default:
 		return nil, fmt.Errorf("unknown method: %s", req.Method)
 	}
@@ -1568,4 +1593,296 @@ func (s *Server) profileToMap(p *domain.Profile) map[string]interface{} {
 		"file_path":    p.FilePath,
 		"created_at":   p.CreatedAt.Format(time.RFC3339),
 	}
+}
+
+// ============================================================================
+// User Management Handlers
+// ============================================================================
+
+// handleUserCreate creates a new user.
+func (s *Server) handleUserCreate(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.authSvc == nil {
+		return nil, fmt.Errorf("auth service not configured")
+	}
+
+	username, _ := params["username"].(string)
+	email, _ := params["email"].(string)
+	password, _ := params["password"].(string)
+	roleStr, _ := params["role"].(string)
+
+	if username == "" || email == "" || password == "" {
+		return nil, fmt.Errorf("username, email, and password are required")
+	}
+
+	role := domain.UserRole(roleStr)
+	if role == "" {
+		role = domain.RoleViewer
+	}
+
+	user, err := s.authSvc.CreateUser(ctx, username, email, password, role)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.userToMap(user), nil
+}
+
+// handleUserList lists all users.
+func (s *Server) handleUserList(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.authSvc == nil {
+		return map[string]interface{}{"users": []interface{}{}}, nil
+	}
+
+	filter := ports.UserFilter{
+		Limit: 100,
+	}
+
+	if role, ok := params["role"].(string); ok && role != "" {
+		filter.Role = domain.UserRole(role)
+	}
+	if status, ok := params["status"].(string); ok && status != "" {
+		filter.Status = domain.UserStatus(status)
+	}
+
+	users, err := s.authSvc.ListUsers(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(users))
+	for i, u := range users {
+		result[i] = s.userToMap(u)
+	}
+	return map[string]interface{}{"users": result}, nil
+}
+
+// handleUserGet retrieves a user by username.
+func (s *Server) handleUserGet(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.authSvc == nil {
+		return nil, fmt.Errorf("auth service not configured")
+	}
+
+	username, _ := params["username"].(string)
+	if username == "" {
+		return nil, fmt.Errorf("username is required")
+	}
+
+	// For now, we need to list and filter since we don't have userRepo directly
+	users, err := s.authSvc.ListUsers(ctx, ports.UserFilter{Username: username, Limit: 1})
+	if err != nil {
+		return nil, err
+	}
+	if len(users) == 0 {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	return s.userToMap(users[0]), nil
+}
+
+// handleUserDelete deletes a user.
+func (s *Server) handleUserDelete(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.authSvc == nil {
+		return nil, fmt.Errorf("auth service not configured")
+	}
+
+	username, _ := params["username"].(string)
+	if username == "" {
+		return nil, fmt.Errorf("username is required")
+	}
+
+	// Get user first
+	users, err := s.authSvc.ListUsers(ctx, ports.UserFilter{Username: username, Limit: 1})
+	if err != nil {
+		return nil, err
+	}
+	if len(users) == 0 {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	if err := s.authSvc.DeleteUser(ctx, users[0].ID); err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{"status": "deleted", "username": username}, nil
+}
+
+// handleAPIKeyCreate creates a new API key.
+func (s *Server) handleAPIKeyCreate(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.authSvc == nil {
+		return nil, fmt.Errorf("auth service not configured")
+	}
+
+	name, _ := params["name"].(string)
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	// Get permissions
+	var permissions []string
+	if perms, ok := params["permissions"].([]interface{}); ok {
+		for _, p := range perms {
+			if ps, ok := p.(string); ok {
+				permissions = append(permissions, ps)
+			}
+		}
+	}
+	if len(permissions) == 0 {
+		permissions = []string{"*"}
+	}
+
+	// For now, we'll use a default user ID (in production, get from session)
+	// This is a placeholder - real implementation would use authenticated user
+	apiKey, key, err := s.authSvc.CreateAPIKey(ctx, [16]byte{}, name, permissions, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"id":          apiKey.ID.String(),
+		"name":        apiKey.Name,
+		"key":         key, // Only returned once!
+		"key_prefix":  apiKey.KeyPrefix,
+		"permissions": apiKey.Permissions,
+		"created_at":  apiKey.CreatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// handleAPIKeyList lists API keys.
+func (s *Server) handleAPIKeyList(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.authSvc == nil {
+		return map[string]interface{}{"keys": []interface{}{}}, nil
+	}
+
+	// For now, return empty list - real implementation would use authenticated user
+	keys, err := s.authSvc.ListAPIKeys(ctx, [16]byte{})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(keys))
+	for i, k := range keys {
+		result[i] = s.apiKeyToMap(k)
+	}
+	return map[string]interface{}{"keys": result}, nil
+}
+
+// handleAPIKeyRevoke revokes an API key.
+func (s *Server) handleAPIKeyRevoke(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.authSvc == nil {
+		return nil, fmt.Errorf("auth service not configured")
+	}
+
+	idStr, _ := params["id"].(string)
+	if idStr == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+
+	if err := s.authSvc.RevokeAPIKey(ctx, id); err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{"status": "revoked", "id": idStr}, nil
+}
+
+// handleAuditList lists audit logs.
+func (s *Server) handleAuditList(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.authSvc == nil {
+		return map[string]interface{}{"logs": []interface{}{}}, nil
+	}
+
+	filter := ports.AuditLogFilter{
+		Limit: 50,
+	}
+
+	if limit, ok := params["limit"].(float64); ok && limit > 0 {
+		filter.Limit = int(limit)
+	}
+	if action, ok := params["action"].(string); ok && action != "" {
+		filter.Action = action
+	}
+
+	logs, err := s.authSvc.GetAuditLogs(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(logs))
+	for i, l := range logs {
+		result[i] = s.auditLogToMap(l)
+	}
+	return map[string]interface{}{"logs": result}, nil
+}
+
+// userToMap converts a user to a map for JSON serialization.
+func (s *Server) userToMap(u *domain.User) map[string]interface{} {
+	m := map[string]interface{}{
+		"id":            u.ID.String(),
+		"username":      u.Username,
+		"email":         u.Email,
+		"role":          string(u.Role),
+		"status":        string(u.Status),
+		"display_name":  u.DisplayName,
+		"failed_logins": u.FailedLogins,
+		"created_at":    u.CreatedAt.Format(time.RFC3339),
+		"updated_at":    u.UpdatedAt.Format(time.RFC3339),
+	}
+	if u.LastLoginAt != nil {
+		m["last_login_at"] = u.LastLoginAt.Format(time.RFC3339)
+	}
+	if u.LockedUntil != nil {
+		m["locked_until"] = u.LockedUntil.Format(time.RFC3339)
+	}
+	return m
+}
+
+// apiKeyToMap converts an API key to a map for JSON serialization.
+func (s *Server) apiKeyToMap(k *domain.APIKey) map[string]interface{} {
+	m := map[string]interface{}{
+		"id":          k.ID.String(),
+		"user_id":     k.UserID.String(),
+		"name":        k.Name,
+		"key_prefix":  k.KeyPrefix,
+		"permissions": k.Permissions,
+		"created_at":  k.CreatedAt.Format(time.RFC3339),
+	}
+	if k.ExpiresAt != nil {
+		m["expires_at"] = k.ExpiresAt.Format(time.RFC3339)
+	}
+	if k.LastUsedAt != nil {
+		m["last_used_at"] = k.LastUsedAt.Format(time.RFC3339)
+	}
+	if k.RevokedAt != nil {
+		m["revoked_at"] = k.RevokedAt.Format(time.RFC3339)
+	}
+	return m
+}
+
+// auditLogToMap converts an audit log to a map for JSON serialization.
+func (s *Server) auditLogToMap(l *domain.AuditLog) map[string]interface{} {
+	m := map[string]interface{}{
+		"id":          l.ID.String(),
+		"action":      l.Action,
+		"resource":    l.Resource,
+		"resource_id": l.ResourceID,
+		"success":     l.Success,
+		"timestamp":   l.Timestamp.Format(time.RFC3339),
+	}
+	if l.UserID != nil {
+		m["user_id"] = l.UserID.String()
+	}
+	if l.Error != "" {
+		m["error"] = l.Error
+	}
+	if len(l.Details) > 0 {
+		m["details"] = l.Details
+	}
+	if l.IPAddress != "" {
+		m["ip_address"] = l.IPAddress
+	}
+	return m
 }
