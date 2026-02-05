@@ -27,6 +27,9 @@ type Server struct {
 	ragSvc      *services.RAGService
 	workflowSvc *services.WorkflowService
 	alertSvc    *services.AlertService
+	traceSvc    *services.TraceService
+	logSvc      *services.LogService
+	profileSvc  *services.ProfileService
 	aiProvider  ports.AIProvider
 	startedAt   time.Time
 	stopCh      chan struct{}
@@ -83,6 +86,11 @@ func NewServer(config Config, logger ports.Logger) (*Server, error) {
 	// Initialize alert service (with nil repos for now - can be enhanced later)
 	alertSvc := services.NewAlertService(nil, nil, nil, nil, metricRepo, logger)
 
+	// Initialize observability services
+	traceSvc := services.NewTraceService(nil, nil, logger)
+	logSvc := services.NewLogService(nil, nil, nil, metricRepo, logger)
+	profileSvc := services.NewProfileService(nil, filepath.Join(config.DataDir, "profiles"), logger)
+
 	return &Server{
 		config:      config,
 		db:          db,
@@ -92,6 +100,9 @@ func NewServer(config Config, logger ports.Logger) (*Server, error) {
 		ragSvc:      ragSvc,
 		workflowSvc: workflowSvc,
 		alertSvc:    alertSvc,
+		traceSvc:    traceSvc,
+		logSvc:      logSvc,
+		profileSvc:  profileSvc,
 		stopCh:      make(chan struct{}),
 	}, nil
 }

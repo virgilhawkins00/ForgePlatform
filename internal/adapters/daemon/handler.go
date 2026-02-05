@@ -235,6 +235,63 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) (interface{}, 
 	case "alert.channel.list":
 		return s.handleAlertChannelList(ctx)
 
+	// Trace handlers
+	case "trace.list":
+		return s.handleTraceList(ctx, req.Params)
+
+	case "trace.get":
+		return s.handleTraceGet(ctx, req.Params)
+
+	case "trace.spans":
+		return s.handleTraceSpans(ctx, req.Params)
+
+	case "trace.service-map":
+		return s.handleTraceServiceMap(ctx, req.Params)
+
+	case "trace.stats":
+		return s.handleTraceStats(ctx)
+
+	// Log handlers
+	case "log.list":
+		return s.handleLogList(ctx, req.Params)
+
+	case "log.search":
+		return s.handleLogSearch(ctx, req.Params)
+
+	case "log.stats":
+		return s.handleLogStats(ctx, req.Params)
+
+	case "log.parser.list":
+		return s.handleLogParserList(ctx)
+
+	// Profile handlers
+	case "profile.start.cpu":
+		return s.handleProfileStartCPU(ctx, req.Params)
+
+	case "profile.start.heap":
+		return s.handleProfileStartHeap(ctx, req.Params)
+
+	case "profile.start.goroutine":
+		return s.handleProfileStartGoroutine(ctx, req.Params)
+
+	case "profile.list":
+		return s.handleProfileList(ctx, req.Params)
+
+	case "profile.get":
+		return s.handleProfileGet(ctx, req.Params)
+
+	case "profile.stop":
+		return s.handleProfileStop(ctx, req.Params)
+
+	case "profile.delete":
+		return s.handleProfileDelete(ctx, req.Params)
+
+	case "profile.stats":
+		return s.handleProfileStats(ctx)
+
+	case "profile.memory":
+		return s.handleProfileMemory(ctx)
+
 	default:
 		return nil, fmt.Errorf("unknown method: %s", req.Method)
 	}
@@ -955,4 +1012,560 @@ func (s *Server) alertToMap(a *domain.Alert) map[string]interface{} {
 		result["acknowledged_by"] = a.AcknowledgedBy
 	}
 	return result
+}
+
+// ============================================================================
+// Trace Handlers
+// ============================================================================
+
+// handleTraceList lists traces with optional filtering.
+func (s *Server) handleTraceList(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.traceSvc == nil {
+		return map[string]interface{}{"traces": []interface{}{}}, nil
+	}
+
+	filter := ports.TraceFilter{
+		Limit: 20,
+	}
+
+	if service, ok := params["service_name"].(string); ok && service != "" {
+		filter.ServiceName = service
+	}
+	if status, ok := params["status"].(string); ok && status != "" {
+		filter.Status = status
+	}
+	if startTime, ok := params["start_time"].(string); ok && startTime != "" {
+		if t, err := time.Parse(time.RFC3339, startTime); err == nil {
+			filter.StartTime = t
+		}
+	}
+	if limit, ok := params["limit"].(float64); ok && limit > 0 {
+		filter.Limit = int(limit)
+	}
+
+	traces, err := s.traceSvc.ListTraces(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(traces))
+	for i, t := range traces {
+		result[i] = s.traceToMap(t)
+	}
+	return map[string]interface{}{"traces": result}, nil
+}
+
+// handleTraceGet gets a trace by ID.
+func (s *Server) handleTraceGet(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.traceSvc == nil {
+		return nil, fmt.Errorf("trace service not configured")
+	}
+
+	traceIDStr, _ := params["trace_id"].(string)
+	if traceIDStr == "" {
+		return nil, fmt.Errorf("trace_id is required")
+	}
+
+	traceID, err := domain.ParseTraceID(traceIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid trace_id: %w", err)
+	}
+
+	trace, err := s.traceSvc.GetTraceByTraceID(ctx, traceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{"trace": s.traceToMap(trace)}, nil
+}
+
+// handleTraceSpans gets spans for a trace.
+func (s *Server) handleTraceSpans(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.traceSvc == nil {
+		return map[string]interface{}{"spans": []interface{}{}}, nil
+	}
+
+	traceIDStr, _ := params["trace_id"].(string)
+	if traceIDStr == "" {
+		return nil, fmt.Errorf("trace_id is required")
+	}
+
+	traceID, err := domain.ParseTraceID(traceIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid trace_id: %w", err)
+	}
+
+	spans, err := s.traceSvc.GetSpansByTraceID(ctx, traceID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(spans))
+	for i, sp := range spans {
+		result[i] = s.spanToMap(sp)
+	}
+	return map[string]interface{}{"spans": result}, nil
+}
+
+// handleTraceServiceMap gets the service dependency map.
+func (s *Server) handleTraceServiceMap(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.traceSvc == nil {
+		return map[string]interface{}{"nodes": []interface{}{}}, nil
+	}
+
+	startTime := time.Now().Add(-24 * time.Hour)
+	endTime := time.Now()
+
+	if st, ok := params["start_time"].(string); ok && st != "" {
+		if t, err := time.Parse(time.RFC3339, st); err == nil {
+			startTime = t
+		}
+	}
+	if et, ok := params["end_time"].(string); ok && et != "" {
+		if t, err := time.Parse(time.RFC3339, et); err == nil {
+			endTime = t
+		}
+	}
+
+	serviceMap, err := s.traceSvc.GetServiceMap(ctx, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes := make([]interface{}, len(serviceMap.Nodes))
+	for i, n := range serviceMap.Nodes {
+		nodes[i] = map[string]interface{}{
+			"service_name":    n.ServiceName,
+			"span_count":      n.SpanCount,
+			"error_count":     n.ErrorCount,
+			"avg_duration_ms": n.AvgDuration,
+			"dependencies":    n.Dependencies,
+		}
+	}
+	return map[string]interface{}{"nodes": nodes}, nil
+}
+
+// handleTraceStats gets trace statistics.
+func (s *Server) handleTraceStats(ctx context.Context) (interface{}, error) {
+	if s.traceSvc == nil {
+		return map[string]interface{}{"active_traces": 0}, nil
+	}
+
+	stats, err := s.traceSvc.GetTraceStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+// traceToMap converts a trace to a map for JSON serialization.
+func (s *Server) traceToMap(t *domain.Trace) map[string]interface{} {
+	return map[string]interface{}{
+		"id":           t.ID.String(),
+		"trace_id":     t.TraceID.String(),
+		"service_name": t.ServiceName,
+		"name":         t.Name,
+		"status":       string(t.Status),
+		"duration":     t.Duration.String(),
+		"span_count":   t.SpanCount,
+		"error_count":  t.ErrorCount,
+		"start_time":   t.StartTime.Format(time.RFC3339),
+		"end_time":     t.EndTime.Format(time.RFC3339),
+	}
+}
+
+// spanToMap converts a span to a map for JSON serialization.
+func (s *Server) spanToMap(sp *domain.Span) map[string]interface{} {
+	return map[string]interface{}{
+		"id":           sp.ID.String(),
+		"trace_id":     sp.TraceID.String(),
+		"span_id":      sp.SpanID.String(),
+		"name":         sp.Name,
+		"kind":         string(sp.Kind),
+		"status":       string(sp.Status),
+		"duration":     sp.Duration.String(),
+		"service_name": sp.ServiceName,
+		"start_time":   sp.StartTime.Format(time.RFC3339),
+		"end_time":     sp.EndTime.Format(time.RFC3339),
+		"attributes":   sp.Attributes,
+	}
+}
+
+// ============================================================================
+// Log Handlers
+// ============================================================================
+
+// handleLogList lists log entries with optional filtering.
+func (s *Server) handleLogList(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.logSvc == nil {
+		return map[string]interface{}{"logs": []interface{}{}}, nil
+	}
+
+	filter := ports.LogFilter{
+		Limit: 50,
+	}
+
+	if level, ok := params["level"].(string); ok && level != "" {
+		filter.Level = domain.LogLevel(level)
+	}
+	if service, ok := params["service_name"].(string); ok && service != "" {
+		filter.ServiceName = service
+	}
+	if source, ok := params["source"].(string); ok && source != "" {
+		filter.Source = source
+	}
+	if traceID, ok := params["trace_id"].(string); ok && traceID != "" {
+		filter.TraceID = traceID
+	}
+	if startTime, ok := params["start_time"].(string); ok && startTime != "" {
+		if t, err := time.Parse(time.RFC3339, startTime); err == nil {
+			filter.StartTime = t
+		}
+	}
+	if limit, ok := params["limit"].(float64); ok && limit > 0 {
+		filter.Limit = int(limit)
+	}
+
+	logs, err := s.logSvc.Query(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(logs))
+	for i, l := range logs {
+		result[i] = s.logEntryToMap(l)
+	}
+	return map[string]interface{}{"logs": result}, nil
+}
+
+// handleLogSearch searches log entries.
+func (s *Server) handleLogSearch(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.logSvc == nil {
+		return map[string]interface{}{"logs": []interface{}{}}, nil
+	}
+
+	query, _ := params["query"].(string)
+	if query == "" {
+		return nil, fmt.Errorf("query is required")
+	}
+
+	filter := ports.LogFilter{
+		Limit: 50,
+	}
+	if startTime, ok := params["start_time"].(string); ok && startTime != "" {
+		if t, err := time.Parse(time.RFC3339, startTime); err == nil {
+			filter.StartTime = t
+		}
+	}
+	if limit, ok := params["limit"].(float64); ok && limit > 0 {
+		filter.Limit = int(limit)
+	}
+
+	logs, err := s.logSvc.Search(ctx, query, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(logs))
+	for i, l := range logs {
+		result[i] = s.logEntryToMap(l)
+	}
+	return map[string]interface{}{"logs": result}, nil
+}
+
+// handleLogStats gets log statistics.
+func (s *Server) handleLogStats(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.logSvc == nil {
+		return map[string]interface{}{
+			"total_count": 0,
+			"by_level":    map[string]int64{},
+			"by_service":  map[string]int64{},
+		}, nil
+	}
+
+	startTime := time.Now().Add(-time.Hour)
+	endTime := time.Now()
+
+	if st, ok := params["start_time"].(string); ok && st != "" {
+		if t, err := time.Parse(time.RFC3339, st); err == nil {
+			startTime = t
+		}
+	}
+	if et, ok := params["end_time"].(string); ok && et != "" {
+		if t, err := time.Parse(time.RFC3339, et); err == nil {
+			endTime = t
+		}
+	}
+
+	stats, err := s.logSvc.GetStats(ctx, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"total_count":    stats.TotalCount,
+		"by_level":       stats.ByLevel,
+		"by_service":     stats.ByService,
+		"by_source":      stats.BySource,
+		"first_log_time": stats.FirstLogTime.Format(time.RFC3339),
+		"last_log_time":  stats.LastLogTime.Format(time.RFC3339),
+	}, nil
+}
+
+// handleLogParserList lists log parsers.
+func (s *Server) handleLogParserList(ctx context.Context) (interface{}, error) {
+	if s.logSvc == nil {
+		return map[string]interface{}{"parsers": []interface{}{}}, nil
+	}
+
+	parsers, err := s.logSvc.ListParsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(parsers))
+	for i, p := range parsers {
+		result[i] = map[string]interface{}{
+			"id":            p.ID.String(),
+			"name":          p.Name,
+			"type":          string(p.Type),
+			"enabled":       p.Enabled,
+			"source_filter": p.SourceFilter,
+		}
+	}
+	return map[string]interface{}{"parsers": result}, nil
+}
+
+// logEntryToMap converts a log entry to a map for JSON serialization.
+func (s *Server) logEntryToMap(l *domain.LogEntry) map[string]interface{} {
+	return map[string]interface{}{
+		"id":           l.ID.String(),
+		"timestamp":    l.Timestamp.Format(time.RFC3339),
+		"level":        string(l.Level),
+		"message":      l.Message,
+		"source":       l.Source,
+		"service_name": l.ServiceName,
+		"trace_id":     l.TraceID,
+		"span_id":      l.SpanID,
+		"attributes":   l.Attributes,
+	}
+}
+
+// ============================================================================
+// Profile Handlers
+// ============================================================================
+
+// handleProfileStartCPU starts CPU profiling.
+func (s *Server) handleProfileStartCPU(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.profileSvc == nil {
+		return nil, fmt.Errorf("profile service not configured")
+	}
+
+	name, _ := params["name"].(string)
+	serviceName, _ := params["service_name"].(string)
+	durationStr, _ := params["duration"].(string)
+
+	duration := 30 * time.Second
+	if durationStr != "" {
+		if d, err := time.ParseDuration(durationStr); err == nil {
+			duration = d
+		}
+	}
+
+	profile, err := s.profileSvc.StartCPUProfile(ctx, name, serviceName, duration)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.profileToMap(profile), nil
+}
+
+// handleProfileStartHeap captures a heap profile.
+func (s *Server) handleProfileStartHeap(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.profileSvc == nil {
+		return nil, fmt.Errorf("profile service not configured")
+	}
+
+	name, _ := params["name"].(string)
+	serviceName, _ := params["service_name"].(string)
+
+	profile, err := s.profileSvc.CaptureHeapProfile(ctx, name, serviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.profileToMap(profile), nil
+}
+
+// handleProfileStartGoroutine captures a goroutine profile.
+func (s *Server) handleProfileStartGoroutine(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.profileSvc == nil {
+		return nil, fmt.Errorf("profile service not configured")
+	}
+
+	name, _ := params["name"].(string)
+	serviceName, _ := params["service_name"].(string)
+
+	profile, err := s.profileSvc.CaptureGoroutineProfile(ctx, name, serviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.profileToMap(profile), nil
+}
+
+// handleProfileList lists profiles.
+func (s *Server) handleProfileList(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.profileSvc == nil {
+		return map[string]interface{}{"profiles": []interface{}{}}, nil
+	}
+
+	filter := ports.ProfileFilter{
+		Limit: 20,
+	}
+
+	if profileType, ok := params["type"].(string); ok && profileType != "" {
+		filter.Type = domain.ProfileType(profileType)
+	}
+	if limit, ok := params["limit"].(float64); ok && limit > 0 {
+		filter.Limit = int(limit)
+	}
+
+	profiles, err := s.profileSvc.ListProfiles(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interface{}, len(profiles))
+	for i, p := range profiles {
+		result[i] = s.profileToMap(p)
+	}
+	return map[string]interface{}{"profiles": result}, nil
+}
+
+// handleProfileGet gets a profile by ID.
+func (s *Server) handleProfileGet(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.profileSvc == nil {
+		return nil, fmt.Errorf("profile service not configured")
+	}
+
+	idStr, _ := params["id"].(string)
+	if idStr == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+
+	profile, err := s.profileSvc.GetProfile(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{"profile": s.profileToMap(profile)}, nil
+}
+
+// handleProfileStop stops an active profile.
+func (s *Server) handleProfileStop(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.profileSvc == nil {
+		return nil, fmt.Errorf("profile service not configured")
+	}
+
+	idStr, _ := params["id"].(string)
+	if idStr == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+
+	profile, err := s.profileSvc.StopProfile(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.profileToMap(profile), nil
+}
+
+// handleProfileDelete deletes a profile.
+func (s *Server) handleProfileDelete(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.profileSvc == nil {
+		return nil, fmt.Errorf("profile service not configured")
+	}
+
+	idStr, _ := params["id"].(string)
+	if idStr == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+
+	if err := s.profileSvc.DeleteProfile(ctx, id); err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"status": "deleted"}, nil
+}
+
+// handleProfileStats gets profile statistics.
+func (s *Server) handleProfileStats(ctx context.Context) (interface{}, error) {
+	if s.profileSvc == nil {
+		return map[string]interface{}{
+			"active_profiles": 0,
+			"num_goroutine":   0,
+		}, nil
+	}
+
+	stats, err := s.profileSvc.GetProfileStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+// handleProfileMemory gets current memory statistics.
+func (s *Server) handleProfileMemory(ctx context.Context) (interface{}, error) {
+	if s.profileSvc == nil {
+		return nil, fmt.Errorf("profile service not configured")
+	}
+
+	stats := s.profileSvc.GetMemoryStats()
+	return map[string]interface{}{
+		"alloc":         stats.Alloc,
+		"total_alloc":   stats.TotalAlloc,
+		"sys":           stats.Sys,
+		"heap_alloc":    stats.HeapAlloc,
+		"heap_sys":      stats.HeapSys,
+		"heap_idle":     stats.HeapIdle,
+		"heap_inuse":    stats.HeapInuse,
+		"heap_released": stats.HeapReleased,
+		"heap_objects":  stats.HeapObjects,
+		"stack_inuse":   stats.StackInuse,
+		"stack_sys":     stats.StackSys,
+		"num_gc":        stats.NumGC,
+		"num_goroutine": stats.NumGoroutine,
+		"captured_at":   stats.CapturedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// profileToMap converts a profile to a map for JSON serialization.
+func (s *Server) profileToMap(p *domain.Profile) map[string]interface{} {
+	return map[string]interface{}{
+		"id":           p.ID.String(),
+		"name":         p.Name,
+		"type":         string(p.Type),
+		"status":       string(p.Status),
+		"service_name": p.ServiceName,
+		"duration":     p.Duration.String(),
+		"data_size":    p.DataSize,
+		"file_path":    p.FilePath,
+		"created_at":   p.CreatedAt.Format(time.RFC3339),
+	}
 }

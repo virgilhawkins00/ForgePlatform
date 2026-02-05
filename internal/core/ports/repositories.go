@@ -356,3 +356,215 @@ type SilenceRepository interface {
 	// ListActive retrieves all active silences.
 	ListActive(ctx context.Context, now time.Time) ([]*domain.Silence, error)
 }
+
+// ============================================================================
+// Observability Repositories (Phase 8: v0.8.0)
+// ============================================================================
+
+// TraceFilter defines filtering options for trace queries.
+type TraceFilter struct {
+	ServiceName string
+	Name        string
+	Status      string
+	MinDuration time.Duration
+	MaxDuration time.Duration
+	StartTime   time.Time
+	EndTime     time.Time
+	Limit       int
+	Offset      int
+}
+
+// SpanFilter defines filtering options for span queries.
+type SpanFilter struct {
+	TraceID     domain.TraceID
+	ServiceName string
+	Name        string
+	Kind        domain.SpanKind
+	Status      domain.SpanStatus
+	StartTime   time.Time
+	EndTime     time.Time
+	Limit       int
+	Offset      int
+}
+
+// TraceRepository defines the interface for trace persistence.
+type TraceRepository interface {
+	// Create persists a new trace.
+	Create(ctx context.Context, trace *domain.Trace) error
+
+	// GetByID retrieves a trace by its UUID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.Trace, error)
+
+	// GetByTraceID retrieves a trace by its TraceID.
+	GetByTraceID(ctx context.Context, traceID domain.TraceID) (*domain.Trace, error)
+
+	// Update updates an existing trace.
+	Update(ctx context.Context, trace *domain.Trace) error
+
+	// Delete removes a trace.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// List retrieves traces with optional filtering.
+	List(ctx context.Context, filter TraceFilter) ([]*domain.Trace, error)
+
+	// GetServiceMap retrieves the service dependency map.
+	GetServiceMap(ctx context.Context, startTime, endTime time.Time) (*domain.ServiceMap, error)
+
+	// DeleteBefore removes traces older than the given timestamp.
+	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
+}
+
+// SpanRepository defines the interface for span persistence.
+type SpanRepository interface {
+	// Create persists a new span.
+	Create(ctx context.Context, span *domain.Span) error
+
+	// CreateBatch persists multiple spans.
+	CreateBatch(ctx context.Context, spans []*domain.Span) error
+
+	// GetByID retrieves a span by its UUID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.Span, error)
+
+	// GetBySpanID retrieves a span by its SpanID.
+	GetBySpanID(ctx context.Context, traceID domain.TraceID, spanID domain.SpanID) (*domain.Span, error)
+
+	// ListByTraceID retrieves all spans for a trace.
+	ListByTraceID(ctx context.Context, traceID domain.TraceID) ([]*domain.Span, error)
+
+	// List retrieves spans with optional filtering.
+	List(ctx context.Context, filter SpanFilter) ([]*domain.Span, error)
+
+	// Delete removes a span.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// DeleteByTraceID removes all spans for a trace.
+	DeleteByTraceID(ctx context.Context, traceID domain.TraceID) (int64, error)
+}
+
+// LogFilter defines filtering options for log queries.
+type LogFilter struct {
+	Level       domain.LogLevel
+	MinLevel    domain.LogLevel
+	Source      string
+	ServiceName string
+	TraceID     string
+	Search      string
+	Attributes  map[string]string
+	StartTime   time.Time
+	EndTime     time.Time
+	Limit       int
+	Offset      int
+}
+
+// LogRepository defines the interface for log persistence.
+type LogRepository interface {
+	// Create persists a new log entry.
+	Create(ctx context.Context, entry *domain.LogEntry) error
+
+	// CreateBatch persists multiple log entries.
+	CreateBatch(ctx context.Context, entries []*domain.LogEntry) error
+
+	// GetByID retrieves a log entry by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.LogEntry, error)
+
+	// List retrieves log entries with optional filtering.
+	List(ctx context.Context, filter LogFilter) ([]*domain.LogEntry, error)
+
+	// Search performs full-text search on log messages.
+	Search(ctx context.Context, query string, filter LogFilter) ([]*domain.LogEntry, error)
+
+	// GetStats retrieves log statistics.
+	GetStats(ctx context.Context, startTime, endTime time.Time) (*domain.LogStats, error)
+
+	// Delete removes a log entry.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// DeleteBefore removes log entries older than the given timestamp.
+	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
+}
+
+// LogParserRepository defines the interface for log parser persistence.
+type LogParserRepository interface {
+	// Create persists a new log parser.
+	Create(ctx context.Context, parser *domain.LogParser) error
+
+	// GetByID retrieves a parser by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.LogParser, error)
+
+	// Update updates an existing parser.
+	Update(ctx context.Context, parser *domain.LogParser) error
+
+	// Delete removes a parser.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// List retrieves all parsers.
+	List(ctx context.Context) ([]*domain.LogParser, error)
+
+	// ListEnabled retrieves all enabled parsers ordered by priority.
+	ListEnabled(ctx context.Context) ([]*domain.LogParser, error)
+}
+
+// LogToMetricRuleRepository defines the interface for log-to-metric rule persistence.
+type LogToMetricRuleRepository interface {
+	// Create persists a new rule.
+	Create(ctx context.Context, rule *domain.LogToMetricRule) error
+
+	// GetByID retrieves a rule by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.LogToMetricRule, error)
+
+	// Update updates an existing rule.
+	Update(ctx context.Context, rule *domain.LogToMetricRule) error
+
+	// Delete removes a rule.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// List retrieves all rules.
+	List(ctx context.Context) ([]*domain.LogToMetricRule, error)
+
+	// ListEnabled retrieves all enabled rules.
+	ListEnabled(ctx context.Context) ([]*domain.LogToMetricRule, error)
+}
+
+// ProfileFilter defines filtering options for profile queries.
+type ProfileFilter struct {
+	Type        domain.ProfileType
+	Status      domain.ProfileStatus
+	ServiceName string
+	StartTime   time.Time
+	EndTime     time.Time
+	Limit       int
+	Offset      int
+}
+
+// ProfileRepository defines the interface for profile persistence.
+type ProfileRepository interface {
+	// Create persists a new profile.
+	Create(ctx context.Context, profile *domain.Profile) error
+
+	// GetByID retrieves a profile by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.Profile, error)
+
+	// Update updates an existing profile.
+	Update(ctx context.Context, profile *domain.Profile) error
+
+	// Delete removes a profile.
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// List retrieves profiles with optional filtering.
+	List(ctx context.Context, filter ProfileFilter) ([]*domain.Profile, error)
+
+	// SaveProfileData saves the profile data.
+	SaveProfileData(ctx context.Context, data *domain.ProfileData) error
+
+	// GetProfileData retrieves the profile data.
+	GetProfileData(ctx context.Context, profileID uuid.UUID) (*domain.ProfileData, error)
+
+	// SaveFlameGraph saves a flame graph.
+	SaveFlameGraph(ctx context.Context, fg *domain.FlameGraph) error
+
+	// GetFlameGraph retrieves a flame graph.
+	GetFlameGraph(ctx context.Context, profileID uuid.UUID) (*domain.FlameGraph, error)
+
+	// DeleteBefore removes profiles older than the given timestamp.
+	DeleteBefore(ctx context.Context, before time.Time) (int64, error)
+}
