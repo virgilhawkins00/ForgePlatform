@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -23,6 +24,7 @@ const Version = "1.1.0"
 type Server struct {
 	config      Config
 	listener    net.Listener
+	httpServer  *HTTPServer
 	db          *storage.DB
 	logger      ports.Logger
 	taskSvc     *services.TaskService
@@ -50,6 +52,7 @@ type Config struct {
 	DataDir         string
 	ShutdownTimeout time.Duration
 	WorkerCount     int
+	HTTPPort        string // Port for HTTP health check server (for Cloud Run/K8s)
 }
 
 // DefaultConfig returns the default daemon configuration.
@@ -60,6 +63,7 @@ func DefaultConfig(forgeDir string) Config {
 		DataDir:         filepath.Join(forgeDir, "data"),
 		ShutdownTimeout: 10 * time.Second,
 		WorkerCount:     4,
+		HTTPPort:        "", // Empty means use PORT env var or default to 8080
 	}
 }
 
@@ -174,6 +178,17 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.logger.Info("Daemon started", "socket", s.config.SocketPath, "pid", os.Getpid())
 
+	// Start HTTP server for health checks (Cloud Run / Kubernetes)
+	s.httpServer = NewHTTPServer(s.config.HTTPPort, s.healthSvc, Version)
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.logger.Info("HTTP server starting", "addr", s.httpServer.Addr())
+		if err := s.httpServer.Start(); err != nil && err != http.ErrServerClosed {
+			s.logger.Error("HTTP server error", "error", err)
+		}
+	}()
+
 	// Start task workers
 	s.taskSvc.StartWorkers(ctx, s.config.WorkerCount)
 
@@ -253,13 +268,20 @@ func (s *Server) Stop(ctx context.Context) error {
 	// Signal stop
 	close(s.stopCh)
 
+	// Shutdown HTTP server
+	if s.httpServer != nil {
+		if err := s.httpServer.Shutdown(ctx); err != nil {
+			s.logger.Error("HTTP server shutdown error", "error", err)
+		}
+	}
+
 	// Stop services
 	s.taskSvc.StopWorkers()
 	s.metricSvc.Stop(ctx)
 
 	// Close listener
 	if s.listener != nil {
-		s.listener.Close()
+		_ = s.listener.Close()
 	}
 
 	// Wait for goroutines

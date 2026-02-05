@@ -1,0 +1,96 @@
+# =============================================================================
+# Cloud Build Configuration for Forge Platform
+# =============================================================================
+# This file configures automated CI/CD for deploying to GCP Cloud Run.
+#
+# Trigger this build:
+#   - Manually: gcloud builds submit --config=cloudbuild.yaml
+#   - Automatically: Configure Cloud Build trigger on push to main branch
+#
+# Required substitutions (set in Cloud Build trigger or command line):
+#   - _REGION: GCP region (default: southamerica-east1)
+#   - _SERVICE_NAME: Cloud Run service name (default: forge)
+#
+# Required IAM permissions for Cloud Build service account:
+#   - Cloud Run Admin
+#   - Service Account User
+#   - Storage Admin (for GCR)
+# =============================================================================
+
+substitutions:
+  _REGION: southamerica-east1
+  _SERVICE_NAME: forge
+  _IMAGE_TAG: ${SHORT_SHA}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+steps:
+  # Step 1: Run tests
+  - name: 'golang:1.24-alpine'
+    id: 'test'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        apk add --no-cache gcc musl-dev sqlite-dev
+        CGO_ENABLED=1 go test ./... -v -short
+    waitFor: ['-']
+
+  # Step 2: Run linter
+  - name: 'golangci/golangci-lint:v1.64-alpine'
+    id: 'lint'
+    args: ['golangci-lint', 'run', '--timeout', '5m']
+    waitFor: ['-']
+
+  # Step 3: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build'
+    args:
+      - 'build'
+      - '--platform=linux/amd64'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:${_IMAGE_TAG}'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'
+      - '.'
+    waitFor: ['test', 'lint']
+
+  # Step 4: Push to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+    waitFor: ['build']
+
+  # Step 5: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=gcr.io/$PROJECT_ID/${_SERVICE_NAME}:${_IMAGE_TAG}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--port=8080'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--cpu-boost'
+      - '--execution-environment=gen2'
+      - '--allow-unauthenticated'
+      - '--set-env-vars=FORGE_DATA_DIR=/home/forge/.forge/data,FORGE_LOG_LEVEL=info'
+    waitFor: ['push']
+
+# Images to be pushed to Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:${_IMAGE_TAG}'
+  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'
+
+# Build timeout (15 minutes)
+timeout: '900s'
+

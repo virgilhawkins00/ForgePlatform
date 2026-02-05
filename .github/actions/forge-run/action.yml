@@ -1,0 +1,105 @@
+name: 'Forge Run'
+description: 'Run Forge Platform commands in your CI/CD pipeline'
+author: 'Forge Platform'
+
+branding:
+  icon: 'terminal'
+  color: 'blue'
+
+inputs:
+  version:
+    description: 'Forge version to install (e.g., v1.1.0, latest)'
+    required: false
+    default: 'latest'
+  command:
+    description: 'Forge command to run (e.g., "workflow run deploy.yaml")'
+    required: true
+  working-directory:
+    description: 'Working directory for the command'
+    required: false
+    default: '.'
+  config-file:
+    description: 'Path to Forge config file'
+    required: false
+  log-level:
+    description: 'Log level (debug, info, warn, error)'
+    required: false
+    default: 'info'
+
+outputs:
+  exit-code:
+    description: 'Exit code of the Forge command'
+    value: ${{ steps.run.outputs.exit-code }}
+  output:
+    description: 'Output of the Forge command'
+    value: ${{ steps.run.outputs.output }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine OS and Architecture
+      id: platform
+      shell: bash
+      run: |
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case $ARCH in
+          x86_64) ARCH="amd64" ;;
+          aarch64|arm64) ARCH="arm64" ;;
+        esac
+        echo "os=$OS" >> $GITHUB_OUTPUT
+        echo "arch=$ARCH" >> $GITHUB_OUTPUT
+        echo "Platform: $OS-$ARCH"
+
+    - name: Download Forge
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        OS="${{ steps.platform.outputs.os }}"
+        ARCH="${{ steps.platform.outputs.arch }}"
+        
+        if [ "$VERSION" = "latest" ]; then
+          DOWNLOAD_URL="https://github.com/forge-platform/forge/releases/latest/download/forge-${OS}-${ARCH}"
+        else
+          DOWNLOAD_URL="https://github.com/forge-platform/forge/releases/download/${VERSION}/forge-${OS}-${ARCH}"
+        fi
+        
+        echo "Downloading Forge from: $DOWNLOAD_URL"
+        curl -sL "$DOWNLOAD_URL" -o /tmp/forge
+        chmod +x /tmp/forge
+        sudo mv /tmp/forge /usr/local/bin/forge
+        forge version
+
+    - name: Run Forge Command
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        FORGE_LOG_LEVEL: ${{ inputs.log-level }}
+      run: |
+        CONFIG_FLAG=""
+        if [ -n "${{ inputs.config-file }}" ]; then
+          CONFIG_FLAG="--config ${{ inputs.config-file }}"
+        fi
+        
+        echo "Running: forge $CONFIG_FLAG ${{ inputs.command }}"
+        
+        # Capture output and exit code
+        set +e
+        OUTPUT=$(forge $CONFIG_FLAG ${{ inputs.command }} 2>&1)
+        EXIT_CODE=$?
+        set -e
+        
+        echo "$OUTPUT"
+        
+        # Set outputs
+        echo "exit-code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        
+        # Handle multiline output
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "output<<$EOF" >> $GITHUB_OUTPUT
+        echo "$OUTPUT" >> $GITHUB_OUTPUT
+        echo "$EOF" >> $GITHUB_OUTPUT
+        
+        exit $EXIT_CODE
+

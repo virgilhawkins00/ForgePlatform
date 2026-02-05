@@ -6,10 +6,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"sync"
 	"time"
 
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
+	"cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/forge-platform/forge/internal/core/domain"
 	"github.com/forge-platform/forge/internal/core/ports"
+	"google.golang.org/api/option"
+	metricpb "google.golang.org/genproto/googleapis/api/metric"
+	monitoredrespb "google.golang.org/genproto/googleapis/api/monitoredres"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // GCPConfig holds GCP Cloud Monitoring configuration.
@@ -33,11 +41,15 @@ func DefaultGCPConfig() GCPConfig {
 
 // GCPExporter exports metrics to GCP Cloud Monitoring.
 type GCPExporter struct {
-	config     GCPConfig
-	httpClient *http.Client
-	logger     ports.Logger
-	metricCh   chan *domain.Metric
-	stopCh     chan struct{}
+	config       GCPConfig
+	client       *monitoring.MetricClient
+	httpClient   *http.Client
+	logger       ports.Logger
+	metricCh     chan *domain.Metric
+	stopCh       chan struct{}
+	mu           sync.RWMutex
+	metricsCount int64
+	errorsCount  int64
 }
 
 // NewGCPExporter creates a new GCP exporter.
@@ -48,6 +60,40 @@ func NewGCPExporter(config GCPConfig, logger ports.Logger) (*GCPExporter, error)
 
 	return &GCPExporter{
 		config: config,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		logger:   logger,
+		metricCh: make(chan *domain.Metric, 1000),
+		stopCh:   make(chan struct{}),
+	}, nil
+}
+
+// NewGCPExporterWithClient creates a new GCP exporter with an initialized client.
+func NewGCPExporterWithClient(ctx context.Context, config GCPConfig, logger ports.Logger) (*GCPExporter, error) {
+	if config.ProjectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+
+	var opts []option.ClientOption
+
+	// Use credentials file if provided, otherwise use ADC
+	if config.CredentialsPath != "" {
+		if _, err := os.Stat(config.CredentialsPath); err != nil {
+			return nil, fmt.Errorf("credentials file not found: %s", config.CredentialsPath)
+		}
+		opts = append(opts, option.WithCredentialsFile(config.CredentialsPath))
+	}
+	// If no credentials path, the client will use Application Default Credentials (ADC)
+
+	client, err := monitoring.NewMetricClient(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create monitoring client: %w", err)
+	}
+
+	return &GCPExporter{
+		config: config,
+		client: client,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -116,18 +162,90 @@ func (e *GCPExporter) flush(metrics []*domain.Metric) {
 		return
 	}
 
-	timeSeries := e.metricsToTimeSeries(metrics)
-	e.logger.Debug("Flushing metrics to GCP", "count", len(timeSeries))
+	e.logger.Debug("Flushing metrics to GCP", "count", len(metrics))
 
-	// In production, this would use the Cloud Monitoring API
-	// For now, we'll log the metrics
+	// If we have a real client, use the Cloud Monitoring API
+	if e.client != nil {
+		e.flushToAPI(context.Background(), metrics)
+		return
+	}
+
+	// Fallback: log metrics (for testing without credentials)
+	timeSeries := e.metricsToTimeSeries(metrics)
 	for _, ts := range timeSeries {
-		e.logger.Debug("GCP metric",
+		e.logger.Debug("GCP metric (dry-run)",
 			"type", ts.MetricType,
 			"value", ts.Value,
 			"time", ts.EndTime,
 		)
 	}
+}
+
+// flushToAPI sends metrics to GCP Cloud Monitoring API.
+func (e *GCPExporter) flushToAPI(ctx context.Context, metrics []*domain.Metric) {
+	// Convert to protobuf time series
+	timeSeries := make([]*monitoringpb.TimeSeries, 0, len(metrics))
+
+	for _, m := range metrics {
+		ts := &monitoringpb.TimeSeries{
+			Metric: &metricpb.Metric{
+				Type:   fmt.Sprintf("%s/%s", e.config.MetricPrefix, m.Name),
+				Labels: m.Tags,
+			},
+			Resource: &monitoredrespb.MonitoredResource{
+				Type: "global",
+				Labels: map[string]string{
+					"project_id": e.config.ProjectID,
+				},
+			},
+			Points: []*monitoringpb.Point{{
+				Interval: &monitoringpb.TimeInterval{
+					EndTime: timestamppb.New(m.Timestamp),
+				},
+				Value: &monitoringpb.TypedValue{
+					Value: &monitoringpb.TypedValue_DoubleValue{
+						DoubleValue: m.Value,
+					},
+				},
+			}},
+		}
+		timeSeries = append(timeSeries, ts)
+	}
+
+	// Create the request
+	req := &monitoringpb.CreateTimeSeriesRequest{
+		Name:       fmt.Sprintf("projects/%s", e.config.ProjectID),
+		TimeSeries: timeSeries,
+	}
+
+	// Send to Cloud Monitoring
+	if err := e.client.CreateTimeSeries(ctx, req); err != nil {
+		e.mu.Lock()
+		e.errorsCount++
+		e.mu.Unlock()
+		e.logger.Error("Failed to send metrics to GCP", "error", err, "count", len(metrics))
+		return
+	}
+
+	e.mu.Lock()
+	e.metricsCount += int64(len(metrics))
+	e.mu.Unlock()
+	e.logger.Debug("Successfully sent metrics to GCP", "count", len(metrics))
+}
+
+// Stats returns exporter statistics.
+func (e *GCPExporter) Stats() (metricsCount, errorsCount int64) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.metricsCount, e.errorsCount
+}
+
+// Close closes the GCP client.
+func (e *GCPExporter) Close() error {
+	if e.client != nil {
+		return e.client.Close()
+	}
+	return nil
 }
 
 // TimeSeries represents a GCP time series point.
