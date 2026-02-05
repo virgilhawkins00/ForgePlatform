@@ -49,7 +49,7 @@ func init() {
 	cloudGCPConfigureCmd.Flags().StringVar(&gcpCredentialsPath, "credentials", "", "Path to service account credentials JSON")
 	cloudGCPConfigureCmd.Flags().StringVar(&gcpRegion, "region", "us-central1", "GCP region")
 	cloudGCPConfigureCmd.Flags().StringVar(&gcpMetricPrefix, "metric-prefix", "custom.googleapis.com/forge", "Metric prefix for Cloud Monitoring")
-	cloudGCPConfigureCmd.MarkFlagRequired("project-id")
+	_ = cloudGCPConfigureCmd.MarkFlagRequired("project-id")
 
 	cloudGCPCmd.AddCommand(cloudGCPConfigureCmd)
 	cloudGCPCmd.AddCommand(cloudGCPStatusCmd)

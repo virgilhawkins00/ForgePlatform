@@ -40,7 +40,7 @@ func NewProfileService(profileRepo ports.ProfileRepository, profileDir string, l
 	if profileDir == "" {
 		profileDir = filepath.Join(os.TempDir(), "forge-profiles")
 	}
-	os.MkdirAll(profileDir, 0755)
+	_ = os.MkdirAll(profileDir, 0755)
 
 	return &ProfileService{
 		profileRepo:    profileRepo,
@@ -86,7 +86,7 @@ func (s *ProfileService) StartCPUProfile(ctx context.Context, name, serviceName 
 		case <-time.After(duration):
 		case <-ap.stopCh:
 		}
-		s.StopProfile(context.Background(), profile.ID)
+		_, _ = s.StopProfile(context.Background(), profile.ID)
 	}()
 
 	if s.profileRepo != nil {

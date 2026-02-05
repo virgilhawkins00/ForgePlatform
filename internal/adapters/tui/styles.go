@@ -6,12 +6,10 @@ import "github.com/charmbracelet/lipgloss"
 var (
 	primaryColor   = lipgloss.Color("#7C3AED") // Purple
 	secondaryColor = lipgloss.Color("#10B981") // Green
-	accentColor    = lipgloss.Color("#F59E0B") // Amber
 	errorColor     = lipgloss.Color("#EF4444") // Red
 	warningColor   = lipgloss.Color("#F97316") // Orange
 	infoColor      = lipgloss.Color("#3B82F6") // Blue
 	mutedColor     = lipgloss.Color("#6B7280") // Gray
-	bgColor        = lipgloss.Color("#1F2937") // Dark gray
 	fgColor        = lipgloss.Color("#F9FAFB") // Light gray
 )
 
@@ -76,21 +74,6 @@ var (
 			BorderForeground(mutedColor).
 			Padding(0, 1)
 
-	// Table styles
-	tableHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(primaryColor).
-				BorderStyle(lipgloss.NormalBorder()).
-				BorderBottom(true).
-				BorderForeground(mutedColor)
-
-	tableRowStyle = lipgloss.NewStyle().
-			Foreground(fgColor)
-
-	tableRowAltStyle = lipgloss.NewStyle().
-				Foreground(fgColor).
-				Background(lipgloss.Color("#374151"))
-
 	// Log level styles
 	logDebugStyle = lipgloss.NewStyle().Foreground(mutedColor)
 	logInfoStyle  = lipgloss.NewStyle().Foreground(infoColor)
@@ -106,12 +89,6 @@ var (
 				Foreground(mutedColor)
 
 	// AI chat styles
-	userMessageStyle = lipgloss.NewStyle().
-				Foreground(fgColor).
-				Background(lipgloss.Color("#374151")).
-				Padding(0, 1).
-				MarginBottom(1)
-
 	assistantMessageStyle = lipgloss.NewStyle().
 				Foreground(fgColor).
 				Background(primaryColor).

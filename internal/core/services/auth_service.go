@@ -136,7 +136,7 @@ func (s *AuthService) Login(ctx context.Context, username, password, ipAddress, 
 	if !user.CheckPassword(password) {
 		user.RecordFailedLogin(s.config.MaxLoginAttempts, s.config.LockDuration)
 		if s.userRepo != nil {
-			s.userRepo.Update(ctx, user)
+			_ = s.userRepo.Update(ctx, user)
 		}
 		s.audit(ctx, &user.ID, "user.login", "user", user.ID.String(), nil, ErrInvalidCredentials)
 		return nil, "", ErrInvalidCredentials
@@ -145,7 +145,7 @@ func (s *AuthService) Login(ctx context.Context, username, password, ipAddress, 
 	// Reset failed logins and create session
 	user.ResetFailedLogins()
 	if s.userRepo != nil {
-		s.userRepo.Update(ctx, user)
+		_ = s.userRepo.Update(ctx, user)
 	}
 
 	session, token, err := domain.GenerateSession(user.ID, ipAddress, userAgent, s.config.SessionDuration)
@@ -257,7 +257,7 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, key string) (*domain.U
 
 			// Record usage
 			apiKey.RecordUsage()
-			s.apiKeyRepo.Update(ctx, apiKey)
+			_ = s.apiKeyRepo.Update(ctx, apiKey)
 
 			return user, apiKey, nil
 		}
@@ -331,10 +331,10 @@ func (s *AuthService) DeleteUser(ctx context.Context, id uuid.UUID) error {
 
 	// Delete associated sessions and API keys
 	if s.sessionRepo != nil {
-		s.sessionRepo.DeleteByUserID(ctx, id)
+		_ = s.sessionRepo.DeleteByUserID(ctx, id)
 	}
 	if s.apiKeyRepo != nil {
-		s.apiKeyRepo.DeleteByUserID(ctx, id)
+		_ = s.apiKeyRepo.DeleteByUserID(ctx, id)
 	}
 
 	if err := s.userRepo.Delete(ctx, id); err != nil {
@@ -371,7 +371,7 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 
 	// Invalidate all sessions except current
 	if s.sessionRepo != nil {
-		s.sessionRepo.DeleteByUserID(ctx, userID)
+		_ = s.sessionRepo.DeleteByUserID(ctx, userID)
 	}
 
 	s.audit(ctx, &userID, "user.password_change", "user", userID.String(), nil, nil)
@@ -392,7 +392,7 @@ func (s *AuthService) audit(ctx context.Context, userID *uuid.UUID, action, reso
 		log.WithError(err)
 	}
 
-	s.auditRepo.Create(ctx, log)
+	_ = s.auditRepo.Create(ctx, log)
 }
 
 // CleanupExpired removes expired sessions and API keys.

@@ -102,7 +102,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		// Send response
 		respBytes, _ := json.Marshal(resp)
 		respBytes = append(respBytes, '\n')
-		conn.Write(respBytes)
+		_, _ = conn.Write(respBytes)
 	}
 }
 
@@ -750,7 +750,7 @@ func (s *Server) sendError(conn net.Conn, id, errMsg string) {
 	resp := Response{ID: id, Error: errMsg}
 	respBytes, _ := json.Marshal(resp)
 	respBytes = append(respBytes, '\n')
-	conn.Write(respBytes)
+	_, _ = conn.Write(respBytes)
 }
 
 // handleAlertRuleList lists all alert rules.

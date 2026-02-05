@@ -64,10 +64,9 @@ type TaskManagerModel struct {
 	wizardTask   TaskItem
 
 	// UI state
-	width        int
-	height       int
-	showDetails  bool
-	filterStatus string
+	width       int
+	height      int
+	showDetails bool
 
 	// Key bindings
 	keys taskManagerKeyMap

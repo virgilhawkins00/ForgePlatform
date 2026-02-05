@@ -132,7 +132,7 @@ func BenchmarkMetricQueryWithAggregation(b *testing.B) {
 				map[string]string{"host": "localhost"},
 			)
 		}
-		repo.RecordBatch(ctx, batch)
+		_ = repo.RecordBatch(ctx, batch)
 	}
 
 	query := ports.MetricQuery{

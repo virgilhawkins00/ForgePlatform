@@ -141,7 +141,7 @@ func runBackupRestore(cmd *cobra.Command, args []string) error {
 	if !backupForce {
 		fmt.Print("This will overwrite the current database. Continue? [y/N]: ")
 		var confirm string
-		fmt.Scanln(&confirm)
+		_, _ = fmt.Scanln(&confirm)
 		if confirm != "y" && confirm != "Y" {
 			fmt.Println("Restore cancelled.")
 			return nil

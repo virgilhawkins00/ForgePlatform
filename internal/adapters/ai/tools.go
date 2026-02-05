@@ -78,7 +78,7 @@ func (r *ToolRegistry) ExecuteTool(ctx context.Context, name string, args map[st
 // RegisterDefaultTools registers the default Forge tools.
 func (r *ToolRegistry) RegisterDefaultTools() {
 	// List metrics tool
-	r.RegisterTool(ports.AITool{
+	_ = r.RegisterTool(ports.AITool{
 		Name:        "list_metrics",
 		Description: "List available metrics from the time-series database",
 		Parameters: map[string]ports.AIToolParameter{
@@ -95,7 +95,7 @@ func (r *ToolRegistry) RegisterDefaultTools() {
 	})
 
 	// Get logs tool
-	r.RegisterTool(ports.AITool{
+	_ = r.RegisterTool(ports.AITool{
 		Name:        "get_logs",
 		Description: "Retrieve logs from the system",
 		Parameters: map[string]ports.AIToolParameter{
@@ -118,7 +118,7 @@ func (r *ToolRegistry) RegisterDefaultTools() {
 	})
 
 	// List tasks tool
-	r.RegisterTool(ports.AITool{
+	_ = r.RegisterTool(ports.AITool{
 		Name:        "list_tasks",
 		Description: "List tasks in the execution queue",
 		Parameters: map[string]ports.AIToolParameter{
@@ -136,7 +136,7 @@ func (r *ToolRegistry) RegisterDefaultTools() {
 	})
 
 	// List plugins tool
-	r.RegisterTool(ports.AITool{
+	_ = r.RegisterTool(ports.AITool{
 		Name:        "list_plugins",
 		Description: "List installed WebAssembly plugins",
 		Parameters:  map[string]ports.AIToolParameter{},
@@ -147,7 +147,7 @@ func (r *ToolRegistry) RegisterDefaultTools() {
 	})
 
 	// Restart plugin tool
-	r.RegisterTool(ports.AITool{
+	_ = r.RegisterTool(ports.AITool{
 		Name:        "restart_plugin",
 		Description: "Restart a WebAssembly plugin",
 		Parameters: map[string]ports.AIToolParameter{

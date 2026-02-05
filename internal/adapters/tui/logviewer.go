@@ -66,12 +66,10 @@ type LogViewerModel struct {
 	searchQuery string
 	searching   bool
 	// UI state
-	ready       bool
-	width       int
-	height      int
-	autoScroll  bool
-	showDetails bool
-	selectedIdx int
+	ready      bool
+	width      int
+	height     int
+	autoScroll bool
 	// Key bindings
 	keys logViewerKeyMap
 }

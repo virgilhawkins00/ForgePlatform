@@ -113,7 +113,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	server.Stop(shutdownCtx)
+	_ = server.Stop(shutdownCtx)
 
 	fmt.Println("✓ Daemon stopped")
 	return nil
@@ -197,7 +197,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	var pid int
-	fmt.Sscanf(string(data), "%d", &pid)
+	_, _ = fmt.Sscanf(string(data), "%d", &pid)
 
 	fmt.Printf("● Daemon is running\n")
 	fmt.Printf("  PID: %d\n", pid)

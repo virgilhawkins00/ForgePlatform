@@ -211,7 +211,7 @@ func runUserDelete(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Are you sure you want to delete user '%s'? [y/N]: ", username)
 	var confirm string
-	fmt.Scanln(&confirm)
+	_, _ = fmt.Scanln(&confirm)
 	if strings.ToLower(confirm) != "y" {
 		fmt.Println("Cancelled")
 		return nil

@@ -80,7 +80,7 @@ func (c *Client) Call(ctx context.Context, method string, params map[string]inte
 
 	// Respect context deadline
 	if deadline, ok := ctx.Deadline(); ok {
-		c.conn.SetWriteDeadline(deadline)
+		_ = c.conn.SetWriteDeadline(deadline)
 	}
 
 	if _, err := c.conn.Write(reqBytes); err != nil {
@@ -89,9 +89,9 @@ func (c *Client) Call(ctx context.Context, method string, params map[string]inte
 
 	// Read response with context deadline
 	if deadline, ok := ctx.Deadline(); ok {
-		c.conn.SetReadDeadline(deadline)
+		_ = c.conn.SetReadDeadline(deadline)
 	} else {
-		c.conn.SetReadDeadline(time.Now().Add(c.timeout))
+		_ = c.conn.SetReadDeadline(time.Now().Add(c.timeout))
 	}
 
 	line, err := c.reader.ReadBytes('\n')

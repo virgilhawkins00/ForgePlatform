@@ -302,7 +302,7 @@ func (s *AlertService) processEvaluation(ctx context.Context, rule *domain.Alert
 			existingAlert.Value = value
 			existingAlert.LastEvaluated = time.Now()
 			if s.alertRepo != nil {
-				s.alertRepo.Update(ctx, existingAlert)
+				_ = s.alertRepo.Update(ctx, existingAlert)
 			}
 		}
 	} else {
@@ -310,7 +310,7 @@ func (s *AlertService) processEvaluation(ctx context.Context, rule *domain.Alert
 			// Resolve the alert
 			existingAlert.Resolve()
 			if s.alertRepo != nil {
-				s.alertRepo.Update(ctx, existingAlert)
+				_ = s.alertRepo.Update(ctx, existingAlert)
 			}
 
 			s.mu.Lock()

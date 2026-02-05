@@ -19,8 +19,7 @@ import (
 
 // ShellAction executes shell commands.
 type ShellAction struct {
-	allowedCommands []string // Optional whitelist of allowed commands
-	workDir         string
+	workDir string
 }
 
 // NewShellAction creates a new shell action handler.
@@ -91,8 +90,7 @@ func (a *ShellAction) Execute(ctx context.Context, step *domain.WorkflowStep, in
 
 // HTTPAction performs HTTP requests.
 type HTTPAction struct {
-	client  *http.Client
-	baseURL string
+	client *http.Client
 }
 
 // NewHTTPAction creates a new HTTP action handler.

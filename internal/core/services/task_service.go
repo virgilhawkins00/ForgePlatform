@@ -143,7 +143,7 @@ func (s *TaskService) processNextTask(ctx context.Context) {
 	if !ok {
 		s.logger.Error("No handler for task type", "type", task.Type)
 		task.MarkFailed(fmt.Errorf("no handler for task type: %s", task.Type))
-		s.repo.Update(ctx, task)
+		_ = s.repo.Update(ctx, task)
 		return
 	}
 
@@ -156,7 +156,7 @@ func (s *TaskService) processNextTask(ctx context.Context) {
 		task.MarkCompleted()
 	}
 
-	s.repo.Update(ctx, task)
+	_ = s.repo.Update(ctx, task)
 }
 
 // releaseExpiredLocks periodically releases expired task locks.

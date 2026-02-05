@@ -44,7 +44,6 @@ type PluginEvent struct {
 
 // PluginMemoryAllocator manages memory allocation for plugin responses.
 type PluginMemoryAllocator struct {
-	mu     sync.Mutex
 	memory map[uint32][]byte
 	nextID uint32
 }
@@ -204,8 +203,7 @@ func (r *Runtime) hostGetConfig(ctx context.Context, m api.Module, keyPtr, keyLe
 		return 0, 0
 	}
 
-	configKey := string(data)
-	value, exists := r.config[configKey]
+	value, exists := r.config[string(data)]
 	if !exists {
 		return 0, 0
 	}

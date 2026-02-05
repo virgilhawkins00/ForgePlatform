@@ -57,7 +57,7 @@ func (r *MetricRepository) RecordBatch(ctx context.Context, metrics []*domain.Me
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO metrics (id, name, type, value, timestamp, series_hash, tags)
@@ -143,7 +143,7 @@ func (r *MetricRepository) Query(ctx context.Context, query ports.MetricQuery) (
 		})
 
 		if series.Tags == nil && len(tagsJSON) > 0 {
-			json.Unmarshal(tagsJSON, &series.Tags)
+			_ = json.Unmarshal(tagsJSON, &series.Tags)
 		}
 	}
 
@@ -209,7 +209,7 @@ func (r *MetricRepository) QueryWithAggregation(ctx context.Context, query ports
 		args = append(args, hashToInt64(*query.SeriesHash))
 	}
 
-	sqlQuery += fmt.Sprintf(" GROUP BY bucket ORDER BY bucket ASC")
+	sqlQuery += " GROUP BY bucket ORDER BY bucket ASC"
 
 	if query.Limit > 0 {
 		sqlQuery += fmt.Sprintf(" LIMIT %d", query.Limit)
@@ -360,7 +360,7 @@ func (r *MetricRepository) RecordAggregatedBatch(ctx context.Context, aggs []*do
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO metrics_aggregated (id, name, series_hash, window_start, window_end, resolution, count, sum, min, max, avg, tags)
@@ -459,7 +459,7 @@ func (r *MetricRepository) QueryAggregated(ctx context.Context, query ports.Metr
 		}
 
 		if len(tagsJSON) > 0 {
-			json.Unmarshal(tagsJSON, &agg.Tags)
+			_ = json.Unmarshal(tagsJSON, &agg.Tags)
 		}
 
 		results = append(results, agg)
@@ -526,7 +526,7 @@ func (r *MetricRepository) GetDistinctSeries(ctx context.Context) ([]ports.Serie
 		}
 
 		if len(tagsJSON) > 0 {
-			json.Unmarshal(tagsJSON, &info.Tags)
+			_ = json.Unmarshal(tagsJSON, &info.Tags)
 		}
 
 		results = append(results, info)
@@ -570,8 +570,8 @@ func (r *MetricRepository) GetStats(ctx context.Context) (*ports.MetricStats, er
 
 	// Get storage size
 	var pageCount, pageSize int64
-	r.db.conn.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pageCount)
-	r.db.conn.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize)
+	_ = r.db.conn.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pageCount)
+	_ = r.db.conn.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize)
 	stats.StorageBytes = pageCount * pageSize
 
 	return stats, nil
