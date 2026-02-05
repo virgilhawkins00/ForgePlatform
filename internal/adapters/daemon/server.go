@@ -16,6 +16,9 @@ import (
 	"github.com/forge-platform/forge/internal/core/services"
 )
 
+// Version is the current Forge version.
+const Version = "1.0.0"
+
 // Server represents the Forge daemon server.
 type Server struct {
 	config      Config
@@ -31,6 +34,7 @@ type Server struct {
 	logSvc      *services.LogService
 	profileSvc  *services.ProfileService
 	authSvc     *services.AuthService
+	healthSvc   *services.HealthService
 	aiProvider  ports.AIProvider
 	startedAt   time.Time
 	stopCh      chan struct{}
@@ -95,6 +99,29 @@ func NewServer(config Config, logger ports.Logger) (*Server, error) {
 	// Initialize auth service
 	authSvc := services.NewAuthService(nil, nil, nil, nil, services.DefaultAuthConfig(), logger)
 
+	// Initialize health service
+	healthSvc := services.NewHealthService(Version, logger)
+
+	// Register health checkers
+	healthSvc.RegisterChecker("database", func(ctx context.Context) services.ComponentHealth {
+		start := time.Now()
+		if err := db.Ping(ctx); err != nil {
+			return services.ComponentHealth{
+				Status:    services.HealthStatusUnhealthy,
+				Message:   "Database connection failed",
+				Details:   map[string]string{"error": err.Error()},
+				CheckedAt: time.Now(),
+				Latency:   time.Since(start),
+			}
+		}
+		return services.ComponentHealth{
+			Status:    services.HealthStatusHealthy,
+			Message:   "Database connection OK",
+			CheckedAt: time.Now(),
+			Latency:   time.Since(start),
+		}
+	})
+
 	return &Server{
 		config:      config,
 		db:          db,
@@ -108,6 +135,7 @@ func NewServer(config Config, logger ports.Logger) (*Server, error) {
 		logSvc:      logSvc,
 		profileSvc:  profileSvc,
 		authSvc:     authSvc,
+		healthSvc:   healthSvc,
 		stopCh:      make(chan struct{}),
 	}, nil
 }

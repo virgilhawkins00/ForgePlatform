@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"time"
 
 	"github.com/forge-platform/forge/internal/core/domain"
@@ -110,6 +111,21 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) (interface{}, 
 	switch req.Method {
 	case "status":
 		return s.GetStatus(), nil
+
+	case "health":
+		return s.handleHealth(ctx, req.Params)
+
+	case "health.liveness":
+		return s.handleLiveness(ctx, req.Params)
+
+	case "health.readiness":
+		return s.handleReadiness(ctx, req.Params)
+
+	case "health.metrics":
+		return s.handleMetrics(ctx, req.Params)
+
+	case "backup.info":
+		return s.handleBackupInfo(ctx, req.Params)
 
 	case "task.list":
 		// TODO: Implement task listing
@@ -1885,4 +1901,112 @@ func (s *Server) auditLogToMap(l *domain.AuditLog) map[string]interface{} {
 		m["ip_address"] = l.IPAddress
 	}
 	return m
+}
+
+// ============================================================================
+// Health Check Handlers
+// ============================================================================
+
+// handleHealth performs a full health check.
+func (s *Server) handleHealth(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.healthSvc == nil {
+		return map[string]interface{}{
+			"status":  "healthy",
+			"version": Version,
+			"uptime":  time.Since(s.startedAt).String(),
+		}, nil
+	}
+
+	health := s.healthSvc.Check(ctx)
+	return s.healthToMap(health), nil
+}
+
+// handleLiveness performs a liveness check.
+func (s *Server) handleLiveness(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.healthSvc == nil {
+		return map[string]interface{}{"alive": true}, nil
+	}
+
+	alive := s.healthSvc.CheckLiveness(ctx)
+	return map[string]interface{}{"alive": alive}, nil
+}
+
+// handleReadiness performs a readiness check.
+func (s *Server) handleReadiness(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	if s.healthSvc == nil {
+		return map[string]interface{}{"ready": true}, nil
+	}
+
+	ready := s.healthSvc.CheckReadiness(ctx)
+	return map[string]interface{}{"ready": ready}, nil
+}
+
+// handleMetrics returns system metrics in Prometheus format.
+func (s *Server) handleMetrics(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	return map[string]interface{}{
+		"go_goroutines":       runtime.NumGoroutine(),
+		"go_threads":          runtime.GOMAXPROCS(0),
+		"go_gc_duration_ns":   m.PauseNs[(m.NumGC+255)%256],
+		"go_gc_count":         m.NumGC,
+		"go_memstats_alloc":   m.Alloc,
+		"go_memstats_sys":     m.Sys,
+		"go_memstats_heap":    m.HeapAlloc,
+		"go_memstats_stack":   m.StackInuse,
+		"go_memstats_objects": m.HeapObjects,
+		"forge_uptime_seconds": time.Since(s.startedAt).Seconds(),
+		"forge_version":        Version,
+	}, nil
+}
+
+// healthToMap converts a SystemHealth to a map for JSON serialization.
+func (s *Server) healthToMap(h *services.SystemHealth) map[string]interface{} {
+	components := make([]map[string]interface{}, len(h.Components))
+	for i, c := range h.Components {
+		components[i] = map[string]interface{}{
+			"name":       c.Name,
+			"status":     string(c.Status),
+			"message":    c.Message,
+			"details":    c.Details,
+			"checked_at": c.CheckedAt.Format(time.RFC3339),
+			"latency_ms": c.Latency.Milliseconds(),
+		}
+	}
+
+	return map[string]interface{}{
+		"status":     string(h.Status),
+		"version":    h.Version,
+		"uptime":     h.Uptime.String(),
+		"uptime_sec": h.Uptime.Seconds(),
+		"components": components,
+		"system": map[string]interface{}{
+			"go_version":    h.System.GoVersion,
+			"goroutines":    h.System.NumGoroutine,
+			"cpus":          h.System.NumCPU,
+			"mem_alloc":     h.System.MemAlloc,
+			"mem_sys":       h.System.MemSys,
+			"heap_alloc":    h.System.HeapAlloc,
+			"heap_inuse":    h.System.HeapInuse,
+			"heap_objects":  h.System.HeapObjects,
+			"gc_pause_ns":   h.System.GCPauseNs,
+			"num_gc":        h.System.NumGC,
+		},
+		"checked_at": h.CheckedAt.Format(time.RFC3339),
+	}
+}
+
+// ============================================================================
+// Backup Handlers
+// ============================================================================
+
+// handleBackupInfo returns backup information.
+func (s *Server) handleBackupInfo(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	return map[string]interface{}{
+		"db_path":    s.db.Path(),
+		"data_dir":   s.config.DataDir,
+		"version":    Version,
+		"started_at": s.startedAt.Format(time.RFC3339),
+	}, nil
 }

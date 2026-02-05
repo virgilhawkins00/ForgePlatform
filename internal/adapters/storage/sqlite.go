@@ -220,3 +220,12 @@ func (db *DB) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return db.conn.BeginTx(ctx, nil)
 }
 
+// Ping checks the database connection.
+func (db *DB) Ping(ctx context.Context) error {
+	return db.conn.PingContext(ctx)
+}
+
+// Path returns the database file path.
+func (db *DB) Path() string {
+	return db.config.Path
+}
