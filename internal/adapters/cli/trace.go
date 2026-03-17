@@ -90,7 +90,7 @@ func runTraceList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list traces: %w", err)
 	}
 
-	traces, ok := resp["traces"].([]interface{})
+	traces, ok := resp.(map[string]interface{})["traces"].([]interface{})
 	if !ok || len(traces) == 0 {
 		fmt.Println("No traces found.")
 		return nil
@@ -129,7 +129,7 @@ func runTraceGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get trace: %w", err)
 	}
 
-	trace, ok := resp["trace"].(map[string]interface{})
+	trace, ok := resp.(map[string]interface{})["trace"].(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("trace not found")
 	}
@@ -159,7 +159,7 @@ func runTraceSpans(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get spans: %w", err)
 	}
 
-	spans, ok := resp["spans"].([]interface{})
+	spans, ok := resp.(map[string]interface{})["spans"].([]interface{})
 	if !ok || len(spans) == 0 {
 		fmt.Println("No spans found.")
 		return nil
@@ -203,7 +203,7 @@ func runTraceServiceMap(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get service map: %w", err)
 	}
 
-	nodes, ok := resp["nodes"].([]interface{})
+	nodes, ok := resp.(map[string]interface{})["nodes"].([]interface{})
 	if !ok || len(nodes) == 0 {
 		fmt.Println("No services found in traces.")
 		return nil
@@ -253,7 +253,7 @@ func runTraceStats(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("=== Trace Statistics ===")
-	fmt.Printf("Active Traces: %v\n", resp["active_traces"])
+	fmt.Printf("Active Traces: %v\n", resp.(map[string]interface{})["active_traces"])
 	return nil
 }
 

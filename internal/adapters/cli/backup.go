@@ -69,7 +69,7 @@ func runBackupCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get backup info: %w", err)
 	}
 
-	dbPath, _ := resp["db_path"].(string)
+	dbPath, _ := resp.(map[string]interface{})["db_path"].(string)
 	if dbPath == "" {
 		return fmt.Errorf("failed to get database path")
 	}
@@ -160,7 +160,7 @@ func runBackupRestore(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get backup info: %w", err)
 	}
 
-	dbPath, _ := resp["db_path"].(string)
+	dbPath, _ := resp.(map[string]interface{})["db_path"].(string)
 	if dbPath == "" {
 		return fmt.Errorf("failed to get database path")
 	}

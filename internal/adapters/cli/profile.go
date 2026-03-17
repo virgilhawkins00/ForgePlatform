@@ -133,7 +133,12 @@ func runProfileStartCPU(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to start CPU profile: %w", err)
 	}
 
-	fmt.Printf("✓ Started CPU profile: %s\n", getString(resp, "id"))
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response format")
+	}
+
+	fmt.Printf("✓ Started CPU profile: %s\n", getString(resMap, "id"))
 	fmt.Printf("  Duration: %s\n", duration)
 	fmt.Printf("  Will auto-stop after duration completes.\n")
 	return nil
@@ -164,8 +169,13 @@ func runProfileStartHeap(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to capture heap profile: %w", err)
 	}
 
-	fmt.Printf("✓ Captured heap profile: %s\n", getString(resp, "id"))
-	fmt.Printf("  Size: %v bytes\n", resp["data_size"])
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response format")
+	}
+
+	fmt.Printf("✓ Captured heap profile: %s\n", getString(resMap, "id"))
+	fmt.Printf("  Size: %v bytes\n", resMap["data_size"])
 	return nil
 }
 
@@ -194,8 +204,13 @@ func runProfileStartGoroutine(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to capture goroutine profile: %w", err)
 	}
 
-	fmt.Printf("✓ Captured goroutine profile: %s\n", getString(resp, "id"))
-	fmt.Printf("  Size: %v bytes\n", resp["data_size"])
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response format")
+	}
+
+	fmt.Printf("✓ Captured goroutine profile: %s\n", getString(resMap, "id"))
+	fmt.Printf("  Size: %v bytes\n", resMap["data_size"])
 	return nil
 }
 
@@ -220,7 +235,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list profiles: %w", err)
 	}
 
-	profiles, ok := resp["profiles"].([]interface{})
+	profiles, ok := resp.(map[string]interface{})["profiles"].([]interface{})
 	if !ok || len(profiles) == 0 {
 		fmt.Println("No profiles found.")
 		return nil
@@ -258,7 +273,7 @@ func runProfileGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get profile: %w", err)
 	}
 
-	profile, ok := resp["profile"].(map[string]interface{})
+	profile, ok := resp.(map[string]interface{})["profile"].(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("profile not found")
 	}
@@ -289,8 +304,13 @@ func runProfileStop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to stop profile: %w", err)
 	}
 
-	fmt.Printf("✓ Stopped profile: %s\n", getString(resp, "id"))
-	fmt.Printf("  Size: %v\n", formatBytes(resp["data_size"]))
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response format")
+	}
+
+	fmt.Printf("✓ Stopped profile: %s\n", getString(resMap, "id"))
+	fmt.Printf("  Size: %v\n", formatBytes(resMap["data_size"]))
 	return nil
 }
 
@@ -324,12 +344,17 @@ func runProfileStats(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get profile stats: %w", err)
 	}
 
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response format")
+	}
+
 	fmt.Println("=== Profile Statistics ===")
-	fmt.Printf("Active Profiles:  %v\n", resp["active_profiles"])
-	fmt.Printf("Goroutines:       %v\n", resp["num_goroutine"])
-	fmt.Printf("Heap Alloc:       %.2f MB\n", resp["heap_alloc_mb"])
-	fmt.Printf("Sys Memory:       %.2f MB\n", resp["sys_mb"])
-	fmt.Printf("GC Cycles:        %v\n", resp["num_gc"])
+	fmt.Printf("Active Profiles:  %v\n", resMap["active_profiles"])
+	fmt.Printf("Goroutines:       %v\n", resMap["num_goroutine"])
+	fmt.Printf("Heap Alloc:       %.2f MB\n", resMap["heap_alloc_mb"])
+	fmt.Printf("Sys Memory:       %.2f MB\n", resMap["sys_mb"])
+	fmt.Printf("GC Cycles:        %v\n", resMap["num_gc"])
 
 	return nil
 }
@@ -347,20 +372,25 @@ func runProfileMemory(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get memory stats: %w", err)
 	}
 
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response format")
+	}
+
 	fmt.Println("=== Memory Statistics ===")
-	fmt.Printf("Alloc:          %s\n", formatBytesUint(resp["alloc"]))
-	fmt.Printf("Total Alloc:    %s\n", formatBytesUint(resp["total_alloc"]))
-	fmt.Printf("Sys:            %s\n", formatBytesUint(resp["sys"]))
-	fmt.Printf("Heap Alloc:     %s\n", formatBytesUint(resp["heap_alloc"]))
-	fmt.Printf("Heap Sys:       %s\n", formatBytesUint(resp["heap_sys"]))
-	fmt.Printf("Heap Idle:      %s\n", formatBytesUint(resp["heap_idle"]))
-	fmt.Printf("Heap Inuse:     %s\n", formatBytesUint(resp["heap_inuse"]))
-	fmt.Printf("Heap Released:  %s\n", formatBytesUint(resp["heap_released"]))
-	fmt.Printf("Heap Objects:   %v\n", resp["heap_objects"])
-	fmt.Printf("Stack Inuse:    %s\n", formatBytesUint(resp["stack_inuse"]))
-	fmt.Printf("Stack Sys:      %s\n", formatBytesUint(resp["stack_sys"]))
-	fmt.Printf("Num GC:         %v\n", resp["num_gc"])
-	fmt.Printf("Num Goroutine:  %v\n", resp["num_goroutine"])
+	fmt.Printf("Alloc:          %s\n", formatBytesUint(resMap["alloc"]))
+	fmt.Printf("Total Alloc:    %s\n", formatBytesUint(resMap["total_alloc"]))
+	fmt.Printf("Sys:            %s\n", formatBytesUint(resMap["sys"]))
+	fmt.Printf("Heap Alloc:     %s\n", formatBytesUint(resMap["heap_alloc"]))
+	fmt.Printf("Heap Sys:       %s\n", formatBytesUint(resMap["heap_sys"]))
+	fmt.Printf("Heap Idle:      %s\n", formatBytesUint(resMap["heap_idle"]))
+	fmt.Printf("Heap Inuse:     %s\n", formatBytesUint(resMap["heap_inuse"]))
+	fmt.Printf("Heap Released:  %s\n", formatBytesUint(resMap["heap_released"]))
+	fmt.Printf("Heap Objects:   %v\n", resMap["heap_objects"])
+	fmt.Printf("Stack Inuse:    %s\n", formatBytesUint(resMap["stack_inuse"]))
+	fmt.Printf("Stack Sys:      %s\n", formatBytesUint(resMap["stack_sys"]))
+	fmt.Printf("Num GC:         %v\n", resMap["num_gc"])
+	fmt.Printf("Num Goroutine:  %v\n", resMap["num_goroutine"])
 
 	return nil
 }

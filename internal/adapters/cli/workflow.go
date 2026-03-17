@@ -113,10 +113,14 @@ func runWorkflowRun(cmd *cobra.Command, args []string) error {
 	}
 
 	if workflowAsync {
-		fmt.Printf("✅ Workflow started (execution ID: %s)\n", resp["execution_id"])
+		if resMap, ok := resp.(map[string]interface{}); ok {
+			fmt.Printf("✅ Workflow started (execution ID: %s)\n", resMap["execution_id"])
+		}
 		fmt.Println("Use 'forge workflow status <id>' to check progress")
 	} else {
-		printWorkflowResult(resp)
+		if resMap, ok := resp.(map[string]interface{}); ok {
+			printWorkflowResult(resMap)
+		}
 	}
 
 	return nil
@@ -135,7 +139,7 @@ func runWorkflowList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list workflows: %w", err)
 	}
 
-	workflows, ok := resp["workflows"].([]interface{})
+	workflows, ok := resp.(map[string]interface{})["workflows"].([]interface{})
 	if !ok || len(workflows) == 0 {
 		fmt.Println("No workflow definitions found.")
 		return nil
@@ -172,7 +176,11 @@ func runWorkflowStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get status: %w", err)
 	}
 
-	printExecutionStatus(resp)
+	if resMap, ok := resp.(map[string]interface{}); ok {
+		printExecutionStatus(resMap)
+	} else {
+		return fmt.Errorf("unexpected response type")
+	}
 	return nil
 }
 
@@ -217,7 +225,7 @@ func runWorkflowHistory(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get history: %w", err)
 	}
 
-	executions, ok := resp["executions"].([]interface{})
+	executions, ok := resp.(map[string]interface{})["executions"].([]interface{})
 	if !ok || len(executions) == 0 {
 		fmt.Println("No execution history found.")
 		return nil

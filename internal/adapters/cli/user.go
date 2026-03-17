@@ -137,7 +137,7 @@ func runUserCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	fmt.Printf("✓ User created: %s (%s)\n", username, resp["id"])
+	fmt.Printf("✓ User created: %s (%s)\n", username, resp.(map[string]interface{})["id"])
 	return nil
 }
 
@@ -153,7 +153,7 @@ func runUserList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list users: %w", err)
 	}
 
-	users, _ := resp["users"].([]interface{})
+	users, _ := resp.(map[string]interface{})["users"].([]interface{})
 
 	if len(users) == 0 {
 		fmt.Println("No users found")
@@ -254,8 +254,8 @@ func runAPIKeyCreate(cmd *cobra.Command, args []string) error {
 	fmt.Println("✓ API key created successfully!")
 	fmt.Println()
 	fmt.Printf("  Name:    %s\n", name)
-	fmt.Printf("  ID:      %s\n", resp["id"])
-	fmt.Printf("  Key:     %s\n", resp["key"])
+	fmt.Printf("  ID:      %s\n", resp.(map[string]interface{})["id"])
+	fmt.Printf("  Key:     %s\n", resp.(map[string]interface{})["key"])
 	fmt.Println()
 	fmt.Println("⚠️  Store this key securely - it will not be shown again!")
 	return nil
@@ -273,7 +273,7 @@ func runAPIKeyList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list API keys: %w", err)
 	}
 
-	keys, _ := resp["keys"].([]interface{})
+	keys, _ := resp.(map[string]interface{})["keys"].([]interface{})
 	if len(keys) == 0 {
 		fmt.Println("No API keys found")
 		return nil
@@ -357,7 +357,7 @@ func runAuditLogs(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list audit logs: %w", err)
 	}
 
-	logs, _ := resp["logs"].([]interface{})
+	logs, _ := resp.(map[string]interface{})["logs"].([]interface{})
 	if len(logs) == 0 {
 		fmt.Println("No audit logs found")
 		return nil

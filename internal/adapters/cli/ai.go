@@ -156,7 +156,7 @@ func runAIChat(cmd *cobra.Command, args []string) error {
 			cancel()
 
 			if err == nil && resp != nil {
-				if content, ok := resp["content"].(string); ok {
+				if content, ok := resp.(map[string]interface{})["content"].(string); ok {
 					fmt.Println()
 					fmt.Printf("Assistant: %s\n", content)
 					fmt.Println()
@@ -197,7 +197,7 @@ func runAIAsk(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if content, ok := resp["content"].(string); ok {
+	if content, ok := resp.(map[string]interface{})["content"].(string); ok {
 		fmt.Printf("Answer: %s\n", content)
 	} else {
 		fmt.Println("Answer: (no response received)")
@@ -230,7 +230,7 @@ func runAIModels(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if models, ok := resp["models"].([]interface{}); ok {
+	if models, ok := resp.(map[string]interface{})["models"].([]interface{}); ok {
 		for _, m := range models {
 			fmt.Printf("  • %v\n", m)
 		}
@@ -273,7 +273,7 @@ func runAIAnalyze(cmd *cobra.Command, args []string) error {
 	}
 
 	// Display analysis results
-	if issues, ok := resp["issues"].([]interface{}); ok && len(issues) > 0 {
+	if issues, ok := resp.(map[string]interface{})["issues"].([]interface{}); ok && len(issues) > 0 {
 		fmt.Println("⚠️  Issues Detected:")
 		fmt.Println()
 		for _, issue := range issues {
@@ -304,7 +304,7 @@ func runAIAnalyze(cmd *cobra.Command, args []string) error {
 		fmt.Println("✅ No issues detected. System looks healthy!")
 	}
 
-	if summary, ok := resp["summary"].(string); ok && summary != "" {
+	if summary, ok := resp.(map[string]interface{})["summary"].(string); ok && summary != "" {
 		fmt.Println("📊 Summary:")
 		fmt.Println(summary)
 	}
@@ -357,7 +357,7 @@ func runAIExplain(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if explanation, ok := resp["explanation"].(string); ok {
+	if explanation, ok := resp.(map[string]interface{})["explanation"].(string); ok {
 		fmt.Println(explanation)
 	}
 
@@ -397,7 +397,7 @@ func runAISuggest(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if suggestions, ok := resp["suggestions"].([]interface{}); ok {
+	if suggestions, ok := resp.(map[string]interface{})["suggestions"].([]interface{}); ok {
 		for i, s := range suggestions {
 			if sug, ok := s.(map[string]interface{}); ok {
 				title := sug["title"]
@@ -448,7 +448,7 @@ func runAIAutomate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if rule, ok := resp["rule"].(map[string]interface{}); ok {
+	if rule, ok := resp.(map[string]interface{})["rule"].(map[string]interface{}); ok {
 		fmt.Println("📋 Generated Automation Rule:")
 		fmt.Println()
 

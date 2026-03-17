@@ -69,16 +69,16 @@ func runHealth(cmd *cobra.Command, args []string) error {
 	}
 
 	// Display formatted output
-	status, _ := resp["status"].(string)
-	version, _ := resp["version"].(string)
-	uptime, _ := resp["uptime"].(string)
+	status, _ := resp.(map[string]interface{})["status"].(string)
+	version, _ := resp.(map[string]interface{})["version"].(string)
+	uptime, _ := resp.(map[string]interface{})["uptime"].(string)
 
 	fmt.Printf("Status:  %s\n", colorStatus(status))
 	fmt.Printf("Version: %s\n", version)
 	fmt.Printf("Uptime:  %s\n", uptime)
 
 	// Display components
-	if components, ok := resp["components"].([]interface{}); ok && len(components) > 0 {
+	if components, ok := resp.(map[string]interface{})["components"].([]interface{}); ok && len(components) > 0 {
 		fmt.Println("\nComponents:")
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "NAME\tSTATUS\tMESSAGE\tLATENCY")
@@ -94,7 +94,7 @@ func runHealth(cmd *cobra.Command, args []string) error {
 	}
 
 	// Display system metrics
-	if sys, ok := resp["system"].(map[string]interface{}); ok {
+	if sys, ok := resp.(map[string]interface{})["system"].(map[string]interface{}); ok {
 		fmt.Println("\nSystem:")
 		goVersion, _ := sys["go_version"].(string)
 		goroutines, _ := sys["goroutines"].(float64)
@@ -123,7 +123,7 @@ func runLiveness(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
-	if alive, ok := resp["alive"].(bool); ok && alive {
+	if alive, ok := resp.(map[string]interface{})["alive"].(bool); ok && alive {
 		fmt.Println("ALIVE")
 		return nil
 	}
@@ -146,7 +146,7 @@ func runReadiness(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
-	if ready, ok := resp["ready"].(bool); ok && ready {
+	if ready, ok := resp.(map[string]interface{})["ready"].(bool); ok && ready {
 		fmt.Println("READY")
 		return nil
 	}
@@ -176,37 +176,37 @@ func runMetrics(cmd *cobra.Command, args []string) error {
 	// Display metrics in Prometheus-like format
 	fmt.Println("# HELP forge_uptime_seconds Forge daemon uptime in seconds")
 	fmt.Println("# TYPE forge_uptime_seconds gauge")
-	if v, ok := resp["forge_uptime_seconds"].(float64); ok {
+	if v, ok := resp.(map[string]interface{})["forge_uptime_seconds"].(float64); ok {
 		fmt.Printf("forge_uptime_seconds %.2f\n\n", v)
 	}
 
 	fmt.Println("# HELP go_goroutines Number of goroutines")
 	fmt.Println("# TYPE go_goroutines gauge")
-	if v, ok := resp["go_goroutines"].(float64); ok {
+	if v, ok := resp.(map[string]interface{})["go_goroutines"].(float64); ok {
 		fmt.Printf("go_goroutines %.0f\n\n", v)
 	}
 
 	fmt.Println("# HELP go_memstats_alloc_bytes Bytes of allocated heap objects")
 	fmt.Println("# TYPE go_memstats_alloc_bytes gauge")
-	if v, ok := resp["go_memstats_alloc"].(float64); ok {
+	if v, ok := resp.(map[string]interface{})["go_memstats_alloc"].(float64); ok {
 		fmt.Printf("go_memstats_alloc_bytes %.0f\n\n", v)
 	}
 
 	fmt.Println("# HELP go_memstats_heap_bytes Bytes of heap memory obtained from the OS")
 	fmt.Println("# TYPE go_memstats_heap_bytes gauge")
-	if v, ok := resp["go_memstats_heap"].(float64); ok {
+	if v, ok := resp.(map[string]interface{})["go_memstats_heap"].(float64); ok {
 		fmt.Printf("go_memstats_heap_bytes %.0f\n\n", v)
 	}
 
 	fmt.Println("# HELP go_gc_duration_ns Latest GC pause duration in nanoseconds")
 	fmt.Println("# TYPE go_gc_duration_ns gauge")
-	if v, ok := resp["go_gc_duration_ns"].(float64); ok {
+	if v, ok := resp.(map[string]interface{})["go_gc_duration_ns"].(float64); ok {
 		fmt.Printf("go_gc_duration_ns %.0f\n\n", v)
 	}
 
 	fmt.Println("# HELP go_gc_count Total number of GC cycles")
 	fmt.Println("# TYPE go_gc_count counter")
-	if v, ok := resp["go_gc_count"].(float64); ok {
+	if v, ok := resp.(map[string]interface{})["go_gc_count"].(float64); ok {
 		fmt.Printf("go_gc_count %.0f\n", v)
 	}
 

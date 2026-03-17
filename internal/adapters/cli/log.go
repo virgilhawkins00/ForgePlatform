@@ -107,7 +107,7 @@ func runLogList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list logs: %w", err)
 	}
 
-	logs, ok := resp["logs"].([]interface{})
+	logs, ok := resp.(map[string]interface{})["logs"].([]interface{})
 	if !ok || len(logs) == 0 {
 		fmt.Println("No logs found.")
 		return nil
@@ -152,7 +152,7 @@ func runLogSearch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to search logs: %w", err)
 	}
 
-	logs, ok := resp["logs"].([]interface{})
+	logs, ok := resp.(map[string]interface{})["logs"].([]interface{})
 	if !ok || len(logs) == 0 {
 		fmt.Println("No logs found matching query.")
 		return nil
@@ -201,18 +201,23 @@ func runLogStats(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("=== Log Statistics ===")
-	fmt.Printf("Total Entries:  %v\n", resp["total_count"])
-	fmt.Printf("Earliest:       %s\n", getString(resp, "earliest_timestamp"))
-	fmt.Printf("Latest:         %s\n", getString(resp, "latest_timestamp"))
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response type")
+	}
 
-	if byLevel, ok := resp["by_level"].(map[string]interface{}); ok {
+	fmt.Printf("Total Entries:  %v\n", resMap["total_count"])
+	fmt.Printf("Earliest:       %s\n", getString(resMap, "earliest_timestamp"))
+	fmt.Printf("Latest:         %s\n", getString(resMap, "latest_timestamp"))
+
+	if byLevel, ok := resMap["by_level"].(map[string]interface{}); ok {
 		fmt.Println("\nBy Level:")
 		for level, count := range byLevel {
 			fmt.Printf("  %s: %v\n", getLevelIcon(level), count)
 		}
 	}
 
-	if byService, ok := resp["by_service"].(map[string]interface{}); ok {
+	if byService, ok := resMap["by_service"].(map[string]interface{}); ok {
 		fmt.Println("\nBy Service:")
 		for service, count := range byService {
 			fmt.Printf("  %s: %v\n", service, count)
@@ -235,7 +240,7 @@ func runLogParserList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list parsers: %w", err)
 	}
 
-	parsers, ok := resp["parsers"].([]interface{})
+	parsers, ok := resp.(map[string]interface{})["parsers"].([]interface{})
 	if !ok || len(parsers) == 0 {
 		fmt.Println("No log parsers configured.")
 		return nil

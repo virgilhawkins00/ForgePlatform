@@ -136,7 +136,7 @@ func runAlertRuleList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list alert rules: %w", err)
 	}
 
-	rules, ok := resp["rules"].([]interface{})
+	rules, ok := resp.(map[string]interface{})["rules"].([]interface{})
 	if !ok || len(rules) == 0 {
 		fmt.Println("No alert rules found.")
 		return nil
@@ -197,7 +197,7 @@ func runAlertRuleCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create alert rule: %w", err)
 	}
 
-	fmt.Printf("✅ Alert rule created: %s (ID: %s)\n", name, resp["id"])
+	fmt.Printf("✅ Alert rule created: %s (ID: %s)\n", name, resp.(map[string]interface{})["id"])
 	return nil
 }
 
@@ -233,7 +233,7 @@ func runAlertList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list alerts: %w", err)
 	}
 
-	alerts, ok := resp["alerts"].([]interface{})
+	alerts, ok := resp.(map[string]interface{})["alerts"].([]interface{})
 	if !ok || len(alerts) == 0 {
 		fmt.Println("No active alerts.")
 		return nil
@@ -285,7 +285,7 @@ func runAlertHistory(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get alert history: %w", err)
 	}
 
-	alerts, ok := resp["alerts"].([]interface{})
+	alerts, ok := resp.(map[string]interface{})["alerts"].([]interface{})
 	if !ok || len(alerts) == 0 {
 		fmt.Println("No alert history found.")
 		return nil
@@ -366,7 +366,7 @@ func runAlertSilenceCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create silence: %w", err)
 	}
 
-	fmt.Printf("✅ Silence created (ID: %s)\n", resp["id"])
+	fmt.Printf("✅ Silence created (ID: %s)\n", resp.(map[string]interface{})["id"])
 	return nil
 }
 
@@ -383,7 +383,7 @@ func runAlertSilenceList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list silences: %w", err)
 	}
 
-	silences, ok := resp["silences"].([]interface{})
+	silences, ok := resp.(map[string]interface{})["silences"].([]interface{})
 	if !ok || len(silences) == 0 {
 		fmt.Println("No active silences.")
 		return nil
@@ -421,7 +421,7 @@ func runAlertChannelList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list channels: %w", err)
 	}
 
-	channels, ok := resp["channels"].([]interface{})
+	channels, ok := resp.(map[string]interface{})["channels"].([]interface{})
 	if !ok || len(channels) == 0 {
 		fmt.Println("No notification channels configured.")
 		return nil

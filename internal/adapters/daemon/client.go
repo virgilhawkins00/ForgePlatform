@@ -57,7 +57,7 @@ func (c *Client) Close() error {
 }
 
 // Call makes an RPC call to the daemon.
-func (c *Client) Call(ctx context.Context, method string, params map[string]interface{}) (map[string]interface{}, error) {
+func (c *Client) Call(ctx context.Context, method string, params map[string]interface{}) (interface{}, error) {
 	if c.conn == nil {
 		if err := c.Connect(); err != nil {
 			return nil, err
@@ -108,17 +108,19 @@ func (c *Client) Call(ctx context.Context, method string, params map[string]inte
 		return nil, fmt.Errorf("daemon error: %s", resp.Error)
 	}
 
-	// Convert result to map
-	if result, ok := resp.Result.(map[string]interface{}); ok {
-		return result, nil
-	}
-
-	return nil, nil
+	return resp.Result, nil
 }
 
 // Status gets the daemon status.
 func (c *Client) Status(ctx context.Context) (map[string]interface{}, error) {
-	return c.Call(ctx, "status", nil)
+	res, err := c.Call(ctx, "status", nil)
+	if err != nil {
+		return nil, err
+	}
+	if m, ok := res.(map[string]interface{}); ok {
+		return m, nil
+	}
+	return nil, fmt.Errorf("unexpected response type")
 }
 
 // RecordMetric records a metric.
@@ -145,8 +147,7 @@ func (c *Client) ListTasks(ctx context.Context, status string) ([]interface{}, e
 		return nil, err
 	}
 
-	// Convert map to slice if the result is wrapped
-	if tasks, ok := resp["tasks"].([]interface{}); ok {
+	if tasks, ok := resp.([]interface{}); ok {
 		return tasks, nil
 	}
 
@@ -160,8 +161,10 @@ func (c *Client) ListPlugins(ctx context.Context) ([]interface{}, error) {
 		return nil, err
 	}
 
-	if plugins, ok := resp["plugins"].([]interface{}); ok {
-		return plugins, nil
+	if respMap, ok := resp.(map[string]interface{}); ok {
+		if plugins, ok := respMap["plugins"].([]interface{}); ok {
+			return plugins, nil
+		}
 	}
 
 	return nil, nil
@@ -181,10 +184,12 @@ func (c *Client) QueryMetric(ctx context.Context, name string, limit int) ([]map
 
 	// Convert result to []map[string]interface{}
 	var metrics []map[string]interface{}
-	if points, ok := resp["points"].([]interface{}); ok {
-		for _, p := range points {
-			if m, ok := p.(map[string]interface{}); ok {
-				metrics = append(metrics, m)
+	if respMap, ok := resp.(map[string]interface{}); ok {
+		if points, ok := respMap["points"].([]interface{}); ok {
+			for _, p := range points {
+				if m, ok := p.(map[string]interface{}); ok {
+					metrics = append(metrics, m)
+				}
 			}
 		}
 	}
@@ -194,5 +199,12 @@ func (c *Client) QueryMetric(ctx context.Context, name string, limit int) ([]map
 
 // GetMetricStats returns TSDB statistics.
 func (c *Client) GetMetricStats(ctx context.Context) (map[string]interface{}, error) {
-	return c.Call(ctx, "metric.stats", nil)
+	res, err := c.Call(ctx, "metric.stats", nil)
+	if err != nil {
+		return nil, err
+	}
+	if m, ok := res.(map[string]interface{}); ok {
+		return m, nil
+	}
+	return nil, fmt.Errorf("unexpected response type")
 }

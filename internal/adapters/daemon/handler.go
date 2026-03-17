@@ -128,12 +128,104 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) (interface{}, 
 		return s.handleBackupInfo(ctx, req.Params)
 
 	case "task.list":
-		// TODO: Implement task listing
-		return []interface{}{}, nil
+		// Parse filters if provided
+		filter := ports.TaskFilter{}
+		if statusStr, ok := req.Params["status"].(string); ok && statusStr != "" {
+			status := domain.TaskStatus(statusStr)
+			filter.Status = &status
+		}
+		if typeStr, ok := req.Params["type"].(string); ok && typeStr != "" {
+			tType := domain.TaskType(typeStr)
+			filter.Type = &tType
+		}
+		if limit, ok := req.Params["limit"].(float64); ok && limit > 0 {
+			filter.Limit = int(limit)
+		} else {
+			filter.Limit = 50 // default
+		}
+
+		tasks, err := s.taskSvc.ListTasks(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		
+		// Convert to map for JSON serialization
+		result := make([]map[string]interface{}, len(tasks))
+		for i, t := range tasks {
+			result[i] = map[string]interface{}{
+				"id":         t.ID.String(),
+				"type":       string(t.Type),
+				"status":     string(t.Status),
+				"created_at": t.CreatedAt.Format(time.RFC3339),
+				"updated_at": t.UpdatedAt.Format(time.RFC3339),
+				"error":      t.Error,
+			}
+		}
+		return result, nil
 
 	case "task.create":
-		// TODO: Implement task creation
-		return map[string]string{"status": "created"}, nil
+		taskTypeStr, ok := req.Params["type"].(string)
+		if !ok || taskTypeStr == "" {
+			return nil, fmt.Errorf("task type is required")
+		}
+		
+		payload, _ := req.Params["payload"].(map[string]interface{})
+		if payload == nil {
+			payload = make(map[string]interface{})
+		}
+
+		task, err := s.taskSvc.CreateTask(ctx, domain.TaskType(taskTypeStr), payload)
+		if err != nil {
+			return nil, err
+		}
+
+		return map[string]interface{}{
+			"id":     task.ID.String(),
+			"status": "created",
+			"type":   string(task.Type),
+		}, nil
+
+	case "task.status":
+		idStr, ok := req.Params["id"].(string)
+		if !ok || idStr == "" {
+			return nil, fmt.Errorf("task id is required")
+		}
+		
+		taskID, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid task id format: %w", err)
+		}
+
+		task, err := s.taskSvc.GetTask(ctx, taskID)
+		if err != nil {
+			return nil, err
+		}
+		
+		return map[string]interface{}{
+			"id":         task.ID.String(),
+			"type":       string(task.Type),
+			"status":     string(task.Status),
+			"error":      task.Error,
+			"created_at": task.CreatedAt.Format(time.RFC3339),
+			"updated_at": task.UpdatedAt.Format(time.RFC3339),
+		}, nil
+
+	case "task.cancel":
+		idStr, ok := req.Params["id"].(string)
+		if !ok || idStr == "" {
+			return nil, fmt.Errorf("task id is required")
+		}
+		
+		taskID, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid task id format: %w", err)
+		}
+
+		if err := s.taskSvc.CancelTask(ctx, taskID); err != nil {
+			return nil, err
+		}
+
+		return map[string]string{"status": "cancelled", "id": taskID.String()}, nil
 
 	case "metric.record":
 		name, _ := req.Params["name"].(string)
