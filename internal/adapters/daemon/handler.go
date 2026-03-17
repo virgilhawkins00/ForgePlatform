@@ -230,20 +230,142 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) (interface{}, 
 	case "metric.record":
 		name, _ := req.Params["name"].(string)
 		value, _ := req.Params["value"].(float64)
-		tags, _ := req.Params["tags"].(map[string]string)
-		if tags == nil {
-			tags = make(map[string]string)
+		tags := make(map[string]string)
+		if tagsInterface, ok := req.Params["tags"].(map[string]interface{}); ok {
+			for k, v := range tagsInterface {
+				if strV, ok := v.(string); ok {
+					tags[k] = strV
+				}
+			}
 		}
-		// TODO: Get metric type from params
-		err := s.metricSvc.Record(ctx, name, "gauge", value, tags)
+
+		metricTypeStr, _ := req.Params["type"].(string)
+		if metricTypeStr == "" {
+			metricTypeStr = string(domain.MetricTypeGauge)
+		}
+
+		err := s.metricSvc.Record(ctx, name, domain.MetricType(metricTypeStr), value, tags)
 		if err != nil {
 			return nil, err
 		}
 		return map[string]string{"status": "recorded"}, nil
 
 	case "metric.query":
-		// TODO: Implement metric query
-		return map[string]interface{}{"points": []interface{}{}}, nil
+		name, _ := req.Params["name"].(string)
+		limitF, _ := req.Params["limit"].(float64)
+		limit := int(limitF)
+		if limit <= 0 {
+			limit = 100
+		}
+		
+		q := ports.MetricQuery{
+			Name: name,
+			Limit: limit,
+		}
+
+		if startStr, ok := req.Params["start"].(string); ok && startStr != "" {
+			if t, err := time.Parse(time.RFC3339, startStr); err == nil {
+				q.StartTime = t
+			}
+		}
+		if endStr, ok := req.Params["end"].(string); ok && endStr != "" {
+			if t, err := time.Parse(time.RFC3339, endStr); err == nil {
+				q.EndTime = t
+			}
+		}
+
+		tags := make(map[string]string)
+		if tagsInterface, ok := req.Params["tags"].(map[string]interface{}); ok {
+			for k, v := range tagsInterface {
+				if strV, ok := v.(string); ok {
+					tags[k] = strV
+				}
+			}
+			q.Tags = tags
+		}
+		
+		series, err := s.metricSvc.Query(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		
+		var points []interface{}
+		if series != nil {
+			for _, p := range series.Points {
+				points = append(points, map[string]interface{}{
+					"timestamp": p.Timestamp.Format(time.RFC3339),
+					"value": p.Value,
+				})
+			}
+		}
+		
+		return map[string]interface{}{"points": points}, nil
+
+	case "metric.list":
+		series, err := s.metricSvc.GetDistinctSeries(ctx)
+		if err != nil {
+			return nil, err
+		}
+		var list []interface{}
+		for _, info := range series {
+			list = append(list, map[string]interface{}{
+				"name": info.Name,
+				"tags": info.Tags,
+				"first_time": info.FirstTime.Format(time.RFC3339),
+				"last_time": info.LastTime.Format(time.RFC3339),
+			})
+		}
+		return map[string]interface{}{"series": list}, nil
+
+	case "metric.aggregate":
+		name, _ := req.Params["name"].(string)
+		agg, _ := req.Params["agg"].(string)
+		stepStr, _ := req.Params["step"].(string)
+
+		tags := make(map[string]string)
+		if tagsInterface, ok := req.Params["tags"].(map[string]interface{}); ok {
+			for k, v := range tagsInterface {
+				if strV, ok := v.(string); ok {
+					tags[k] = strV
+				}
+			}
+		}
+		
+		startStr, _ := req.Params["start"].(string)
+		endStr, _ := req.Params["end"].(string)
+		start, _ := time.Parse(time.RFC3339, startStr)
+		end, _ := time.Parse(time.RFC3339, endStr)
+		step, _ := time.ParseDuration(stepStr)
+		
+		q := ports.MetricQuery{
+			Name: name, StartTime: start, EndTime: end, Tags: tags,
+			Aggregation: ports.AggregationType(agg), Step: step,
+		}
+		results, err := s.metricSvc.QueryWithAggregation(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		
+		var list []interface{}
+		for _, r := range results {
+			list = append(list, map[string]interface{}{
+				"timestamp": r.Timestamp.Format(time.RFC3339),
+				"sum": r.Sum, "avg": r.Avg, "min": r.Min, "max": r.Max, "count": r.Count,
+			})
+		}
+		return map[string]interface{}{"points": list}, nil
+
+	case "metric.downsample":
+		olderThanStr, _ := req.Params["older_than"].(string)
+		resolution, _ := req.Params["resolution"].(string)
+		olderThan, err := time.ParseDuration(olderThanStr)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.metricSvc.Downsample(ctx, olderThan, resolution); err != nil {
+			return nil, err
+		}
+		return map[string]string{"status": "downsampling completed"}, nil
 
 	case "metric.stats":
 		stats, err := s.metricSvc.GetStats(ctx)
@@ -252,28 +374,7 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) (interface{}, 
 		}
 		return stats, nil
 
-	case "metric.series":
-		series, err := s.metricSvc.GetDistinctSeries(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return series, nil
 
-	case "metric.downsample":
-		olderThanSec, _ := req.Params["older_than_seconds"].(float64)
-		resolution, _ := req.Params["resolution"].(string)
-		if olderThanSec == 0 {
-			olderThanSec = 7 * 24 * 3600 // 7 days default
-		}
-		if resolution == "" {
-			resolution = "1m"
-		}
-		olderThan := time.Duration(olderThanSec) * time.Second
-		err := s.metricSvc.Downsample(ctx, olderThan, resolution)
-		if err != nil {
-			return nil, err
-		}
-		return map[string]string{"status": "completed"}, nil
 
 	case "plugin.list":
 		// TODO: Implement plugin listing

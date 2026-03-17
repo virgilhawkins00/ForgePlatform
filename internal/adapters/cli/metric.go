@@ -126,7 +126,24 @@ func runMetricRecord(cmd *cobra.Command, args []string) error {
 
 	tags := parseTags(metricTags)
 
-	// TODO: Connect to daemon and record metric
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	params := map[string]interface{}{
+		"name":  name,
+		"value": value,
+		"type":  metricType,
+		"tags":  tags,
+	}
+
+	_, err = client.Call(cmd.Context(), "metric.record", params)
+	if err != nil {
+		return fmt.Errorf("failed to record metric: %w", err)
+	}
+
 	fmt.Printf("✓ Metric recorded\n")
 	fmt.Printf("  Name: %s\n", name)
 	fmt.Printf("  Value: %.2f\n", value)
@@ -142,30 +159,117 @@ func runMetricRecord(cmd *cobra.Command, args []string) error {
 func runMetricQuery(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	// TODO: Connect to daemon and query metrics
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	start, err := parseTimeSpec(metricStart)
+	if err != nil {
+		return err
+	}
+	end, err := parseTimeSpec(metricEnd)
+	if err != nil {
+		return err
+	}
+
+	params := map[string]interface{}{
+		"name":  name,
+		"start": start.Format(time.RFC3339),
+		"end":   end.Format(time.RFC3339),
+		"tags":  parseTags(metricTags),
+		"limit": 100, // default limit
+	}
+
+	resp, err := client.Call(cmd.Context(), "metric.query", params)
+	if err != nil {
+		return fmt.Errorf("failed to query metrics: %w", err)
+	}
+
 	fmt.Printf("Querying metric: %s\n", name)
 	fmt.Printf("  Time range: %s to %s\n", metricStart, metricEnd)
-	if metricInterval != "" {
-		fmt.Printf("  Aggregation: %s\n", metricInterval)
+	
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response type")
 	}
-	fmt.Println("\n(daemon not connected)")
+
+	if points, ok := resMap["points"].([]interface{}); ok {
+		fmt.Printf("\nFound %d points:\n", len(points))
+		for _, p := range points {
+			pt := p.(map[string]interface{})
+			fmt.Printf("  %s: %v\n", pt["timestamp"], pt["value"])
+		}
+	} else {
+		fmt.Println("\nNo points found.")
+	}
 
 	return nil
 }
 
 func runMetricList(cmd *cobra.Command, args []string) error {
-	// TODO: Connect to daemon and list series
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	resp, err := client.Call(cmd.Context(), "metric.list", nil)
+	if err != nil {
+		return fmt.Errorf("failed to list series: %w", err)
+	}
+
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response type")
+	}
+
 	fmt.Println("Metric Series:")
-	fmt.Println("(daemon not connected)")
+	if seriesList, ok := resMap["series"].([]interface{}); ok {
+		for _, s := range seriesList {
+			sv := s.(map[string]interface{})
+			fmt.Printf("  %s\n", sv["name"])
+			if tags, ok := sv["tags"].(map[string]interface{}); ok && len(tags) > 0 {
+				fmt.Printf("    Tags: %v\n", tags)
+			}
+			fmt.Printf("    Range: %s - %s\n", sv["first_time"], sv["last_time"])
+		}
+	}
+
 	return nil
 }
 
 func runMetricStats(cmd *cobra.Command, args []string) error {
-	// TODO: Connect to daemon and get stats
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	resp, err := client.Call(cmd.Context(), "metric.stats", nil)
+	if err != nil {
+		return fmt.Errorf("failed to get stats: %w", err)
+	}
+
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response type")
+	}
+
 	fmt.Println("TSDB Statistics:")
-	fmt.Println("  Total metrics: (daemon not connected)")
-	fmt.Println("  Unique series: (daemon not connected)")
-	fmt.Println("  Database size: (daemon not connected)")
+	fmt.Printf("  Total points: %v\n", resMap["TotalPoints"])
+	fmt.Printf("  Total series: %v\n", resMap["TotalSeries"])
+	fmt.Printf("  Storage space: %v bytes\n", resMap["StorageBytes"])
+	fmt.Printf("  Time range: %v to %v\n", resMap["OldestPoint"], resMap["NewestPoint"])
+	
+	if agg, ok := resMap["AggregatedPoints"].(map[string]interface{}); ok {
+		fmt.Println("  Aggregated points:")
+		for res, count := range agg {
+			fmt.Printf("    %s: %v\n", res, count)
+		}
+	}
+
 	return nil
 }
 
@@ -186,10 +290,23 @@ func runMetricDownsample(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Target resolution: %s\n", metricResolution)
 	fmt.Println("\n(daemon not connected - would aggregate old metrics)")
 
-	// TODO: Connect to daemon and trigger downsampling
-	// client.Downsample(olderThan, metricResolution)
-	_ = olderThan
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
 
+	params := map[string]interface{}{
+		"older_than": olderThan.String(),
+		"resolution": metricResolution,
+	}
+
+	_, err = client.Call(cmd.Context(), "metric.downsample", params)
+	if err != nil {
+		return fmt.Errorf("failed to downsample metrics: %w", err)
+	}
+
+	fmt.Printf("✓ Downsampling started/completed for metrics older than %s to %s resolution.\n", metricOlderThan, metricResolution)
 	return nil
 }
 
@@ -225,8 +342,40 @@ func runMetricAggregate(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println("\n(daemon not connected)")
 
-	// TODO: Connect to daemon and run aggregated query
-	// results := client.QueryWithAggregation(query)
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	params := map[string]interface{}{
+		"name":  name,
+		"agg":   metricAggType,
+		"step":  metricStep,
+		"tags":  parseTags(metricTags),
+		"start": start.Format(time.RFC3339),
+		"end":   end.Format(time.RFC3339),
+	}
+
+	resp, err := client.Call(cmd.Context(), "metric.aggregate", params)
+	if err != nil {
+		return fmt.Errorf("failed to execute aggregate query: %w", err)
+	}
+
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response type")
+	}
+
+	if points, ok := resMap["points"].([]interface{}); ok {
+		fmt.Printf("\nFound %d aggregated points:\n", len(points))
+		for _, p := range points {
+			pt := p.(map[string]interface{})
+			fmt.Printf("  %s: %v\n", pt["timestamp"], pt[metricAggType])
+		}
+	} else {
+		fmt.Println("\nNo points found.")
+	}
 
 	return nil
 }
