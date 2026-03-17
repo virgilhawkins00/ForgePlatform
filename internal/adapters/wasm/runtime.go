@@ -33,6 +33,7 @@ type Runtime struct {
 	config     map[string]string      // Plugin configuration
 	eventBus   chan PluginEvent       // Event bus for inter-plugin communication
 	allocator  *PluginMemoryAllocator // Memory allocator for plugin responses
+	metricSvc  ports.MetricService    // Metric service for recording plugin metrics
 }
 
 // PluginEvent represents an event emitted by a plugin.
@@ -67,6 +68,7 @@ type RuntimeOptions struct {
 	HTTPTimeout   time.Duration     // HTTP request timeout (default: 30s)
 	AllowedHosts  []string          // Allowed hosts for HTTP requests (empty = all)
 	EventBufSize  int               // Event bus buffer size (default: 100)
+	MetricSvc     ports.MetricService // Metric service
 }
 
 // NewRuntimeWithOptions creates a new WebAssembly runtime with options.
@@ -115,6 +117,7 @@ func NewRuntimeWithOptions(ctx context.Context, logger ports.Logger, opts Runtim
 			memory: make(map[uint32][]byte),
 			nextID: 1,
 		},
+		metricSvc: opts.MetricSvc,
 	}
 
 	// Register host functions
@@ -192,7 +195,13 @@ func (r *Runtime) hostMetricRecord(ctx context.Context, m api.Module, keyPtr, ke
 
 	metricName := string(data)
 	r.logger.Debug("Plugin recorded metric", "name", metricName, "value", value)
-	// TODO: Actually record the metric via the metric service
+	
+	if r.metricSvc != nil {
+		err := r.metricSvc.Record(ctx, metricName, domain.MetricTypeGauge, value, map[string]string{"source": "plugin"})
+		if err != nil {
+			r.logger.Error("Failed to record plugin metric", "error", err)
+		}
+	}
 }
 
 // Host function: forge_get_config(key_ptr i32, key_len i32) -> (ptr i32, len i32)

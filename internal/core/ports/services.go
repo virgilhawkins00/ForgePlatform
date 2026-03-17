@@ -24,6 +24,11 @@ type WasmRuntime interface {
 	Close() error
 }
 
+// MetricService defines the interface for metric recording.
+type MetricService interface {
+	Record(ctx context.Context, name string, metricType domain.MetricType, value float64, tags map[string]string) error
+}
+
 // AIProvider defines the interface for AI/LLM interactions.
 type AIProvider interface {
 	// Chat sends a conversation to the LLM and returns the response.
