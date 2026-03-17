@@ -139,3 +139,61 @@ func TestDB_BeginTx(t *testing.T) {
 	tx.Rollback()
 }
 
+func TestNewTaskRepository(t *testing.T) {
+	tmpDir := filepath.Join(os.TempDir(), "forge-sqlite-test-task-repo")
+	defer os.RemoveAll(tmpDir)
+
+	cfg := DefaultConfig(tmpDir)
+	db, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewTaskRepository(db)
+	if repo == nil {
+		t.Error("expected non-nil task repository")
+	}
+}
+
+func TestNewMetricRepository(t *testing.T) {
+	tmpDir := filepath.Join(os.TempDir(), "forge-sqlite-test-metric-repo")
+	defer os.RemoveAll(tmpDir)
+
+	cfg := DefaultConfig(tmpDir)
+	db, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewMetricRepository(db)
+	if repo == nil {
+		t.Error("expected non-nil metric repository")
+	}
+}
+
+func TestConfig_Fields(t *testing.T) {
+	cfg := Config{
+		Path:        "/custom/path/db.sqlite",
+		JournalMode: "DELETE",
+		Synchronous: "FULL",
+		CacheSize:   -32000,
+		MmapSize:    134217728,
+		BusyTimeout: 10000,
+	}
+
+	if cfg.Path != "/custom/path/db.sqlite" {
+		t.Error("Path field mismatch")
+	}
+	if cfg.JournalMode != "DELETE" {
+		t.Error("JournalMode field mismatch")
+	}
+	if cfg.Synchronous != "FULL" {
+		t.Error("Synchronous field mismatch")
+	}
+	if cfg.CacheSize != -32000 {
+		t.Error("CacheSize field mismatch")
+	}
+}
+
