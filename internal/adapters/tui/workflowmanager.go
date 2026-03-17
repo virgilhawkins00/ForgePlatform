@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -9,8 +12,27 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/forge-platform/forge/internal/adapters/daemon"
 	"github.com/google/uuid"
 )
+
+// newTUIDaemonClient creates a new daemon client for TUI operations.
+func newTUIDaemonClient() (*daemon.Client, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	socketPath := filepath.Join(home, ".forge", "forge.sock")
+	return daemon.NewClient(socketPath)
+}
+
+// getString safely extracts a string from a map.
+func getString(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
 
 // WorkflowItem represents a workflow execution in the list.
 type WorkflowItem struct {
@@ -318,14 +340,51 @@ type refreshWorkflowsMsg struct {
 // Helper methods
 func (m *WorkflowManagerModel) refreshExecutions() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Fetch from daemon
-		return refreshWorkflowsMsg{executions: []WorkflowItem{}}
+		client, err := newTUIDaemonClient()
+		if err != nil {
+			return refreshWorkflowsMsg{executions: []WorkflowItem{}}
+		}
+		defer client.Close()
+
+		resp, err := client.Call(context.Background(), "workflow.history", map[string]interface{}{"limit": 20})
+		if err != nil {
+			return refreshWorkflowsMsg{executions: []WorkflowItem{}}
+		}
+
+		var items []WorkflowItem
+		if resMap, ok := resp.(map[string]interface{}); ok {
+			if executions, ok := resMap["executions"].([]interface{}); ok {
+				for _, e := range executions {
+					if exec, ok := e.(map[string]interface{}); ok {
+						item := WorkflowItem{
+							WorkflowName: getString(exec, "workflow_name"),
+							Status:       getString(exec, "status"),
+						}
+						if idStr, ok := exec["id"].(string); ok {
+							if id, err := uuid.Parse(idStr); err == nil {
+								item.ID = id
+							}
+						}
+						items = append(items, item)
+					}
+				}
+			}
+		}
+		return refreshWorkflowsMsg{executions: items}
 	}
 }
 
 func (m *WorkflowManagerModel) cancelWorkflow(id uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Call daemon to cancel
+		client, err := newTUIDaemonClient()
+		if err != nil {
+			return refreshWorkflowsMsg{executions: m.executions}
+		}
+		defer client.Close()
+
+		_, _ = client.Call(context.Background(), "workflow.cancel", map[string]interface{}{
+			"execution_id": id.String(),
+		})
 		return refreshWorkflowsMsg{executions: m.executions}
 	}
 }

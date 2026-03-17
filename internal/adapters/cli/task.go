@@ -91,19 +91,18 @@ func runTaskList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to fetch tasks: %w", err)
 	}
 
-	// Wait, the client.Call returns map[string]interface{} under the hood!
-	// Our handler actually returned []map[string]interface{} directly.
-	// We need to fetch the underlying array, let's just make it generic.
+	// The daemon handler returns []map[string]interface{} which gets
+	// JSON-serialized and deserialized as []interface{} through the client.
 	var tasks []interface{}
-	
-	// Because of unmarshalling JSON into map[string]interface{} inside daemonClient,
-	// when a handler returns an array directly, the top-level might just parse if it's set as `Result` properly.
-	// But `client.Call` has a hardcoded conversion:
-	// `if result, ok := resp.Result.(map[string]interface{}); ok { return result, nil }`
-	// Because it forces a map[string]interface{}, returning an array from handler will make `client.Call` return `nil` instead of the array result!
-	// Wait, this is a bug in `client.Call`. I will fix `client.Call` shortly.
-	
-	_ = result
+	switch v := result.(type) {
+	case []interface{}:
+		tasks = v
+	case map[string]interface{}:
+		// If wrapped in a map, try to extract a "tasks" key
+		if t, ok := v["tasks"].([]interface{}); ok {
+			tasks = t
+		}
+	}
 
 	fmt.Println("ID                                   | Type           | Status    | Created")
 	fmt.Println("-------------------------------------|----------------|-----------|--------------------")

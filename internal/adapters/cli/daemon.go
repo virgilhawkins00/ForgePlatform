@@ -203,7 +203,24 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  PID: %d\n", pid)
 	fmt.Printf("  Socket: %s\n", socketPath)
 
-	// TODO: Connect to daemon and get detailed status
+	// Connect to daemon and get detailed status
+	client, clientErr := newDaemonClient()
+	if clientErr == nil {
+		defer client.Close()
+		status, err := client.Status(cmd.Context())
+		if err == nil {
+			if uptime, ok := status["uptime"].(string); ok {
+				fmt.Printf("  Uptime: %s\n", uptime)
+			}
+			if version, ok := status["version"].(string); ok {
+				fmt.Printf("  Version: %s\n", version)
+			}
+			if goroutines, ok := status["goroutines"]; ok {
+				fmt.Printf("  Goroutines: %v\n", goroutines)
+			}
+		}
+	}
+
 	return nil
 }
 

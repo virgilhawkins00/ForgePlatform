@@ -2,16 +2,23 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
 	"github.com/forge-platform/forge/internal/core/ports"
 )
 
+// DaemonCaller is an interface for calling daemon RPC methods.
+type DaemonCaller interface {
+	Call(ctx context.Context, method string, params map[string]interface{}) (interface{}, error)
+}
+
 // ToolRegistry manages AI tools.
 type ToolRegistry struct {
-	tools map[string]ports.AITool
-	mu    sync.RWMutex
+	tools        map[string]ports.AITool
+	mu           sync.RWMutex
+	daemonClient DaemonCaller
 }
 
 // NewToolRegistry creates a new tool registry.
@@ -19,6 +26,11 @@ func NewToolRegistry() *ToolRegistry {
 	return &ToolRegistry{
 		tools: make(map[string]ports.AITool),
 	}
+}
+
+// SetDaemonClient sets the daemon client for tool execution.
+func (r *ToolRegistry) SetDaemonClient(client DaemonCaller) {
+	r.daemonClient = client
 }
 
 // RegisterTool registers a new tool.
@@ -89,8 +101,15 @@ func (r *ToolRegistry) RegisterDefaultTools() {
 			},
 		},
 		Handler: func(ctx context.Context, args map[string]interface{}) (string, error) {
-			// TODO: Implement actual metric listing
-			return "Available metrics: cpu_usage, memory_usage, disk_io", nil
+			if r.daemonClient == nil {
+				return "Daemon not connected. Cannot list metrics.", nil
+			}
+			resp, err := r.daemonClient.Call(ctx, "metric.list", nil)
+			if err != nil {
+				return fmt.Sprintf("Error listing metrics: %v", err), nil
+			}
+			data, _ := json.Marshal(resp)
+			return string(data), nil
 		},
 	})
 
@@ -112,8 +131,22 @@ func (r *ToolRegistry) RegisterDefaultTools() {
 			},
 		},
 		Handler: func(ctx context.Context, args map[string]interface{}) (string, error) {
-			// TODO: Implement actual log retrieval
-			return "No recent logs found", nil
+			if r.daemonClient == nil {
+				return "Daemon not connected. Cannot retrieve logs.", nil
+			}
+			params := map[string]interface{}{"limit": 20}
+			if level, ok := args["level"].(string); ok {
+				params["level"] = level
+			}
+			if limit, ok := args["limit"].(float64); ok {
+				params["limit"] = int(limit)
+			}
+			resp, err := r.daemonClient.Call(ctx, "log.list", params)
+			if err != nil {
+				return fmt.Sprintf("Error retrieving logs: %v", err), nil
+			}
+			data, _ := json.Marshal(resp)
+			return string(data), nil
 		},
 	})
 
@@ -130,8 +163,15 @@ func (r *ToolRegistry) RegisterDefaultTools() {
 			},
 		},
 		Handler: func(ctx context.Context, args map[string]interface{}) (string, error) {
-			// TODO: Implement actual task listing
-			return "No tasks in queue", nil
+			if r.daemonClient == nil {
+				return "Daemon not connected. Cannot list tasks.", nil
+			}
+			resp, err := r.daemonClient.Call(ctx, "task.list", args)
+			if err != nil {
+				return fmt.Sprintf("Error listing tasks: %v", err), nil
+			}
+			data, _ := json.Marshal(resp)
+			return string(data), nil
 		},
 	})
 
@@ -141,8 +181,15 @@ func (r *ToolRegistry) RegisterDefaultTools() {
 		Description: "List installed WebAssembly plugins",
 		Parameters:  map[string]ports.AIToolParameter{},
 		Handler: func(ctx context.Context, args map[string]interface{}) (string, error) {
-			// TODO: Implement actual plugin listing
-			return "No plugins installed", nil
+			if r.daemonClient == nil {
+				return "Daemon not connected. Cannot list plugins.", nil
+			}
+			resp, err := r.daemonClient.Call(ctx, "plugin.list", nil)
+			if err != nil {
+				return fmt.Sprintf("Error listing plugins: %v", err), nil
+			}
+			data, _ := json.Marshal(resp)
+			return string(data), nil
 		},
 	})
 
@@ -162,8 +209,14 @@ func (r *ToolRegistry) RegisterDefaultTools() {
 			if !ok {
 				return "", fmt.Errorf("plugin_id is required")
 			}
-			// TODO: Implement actual plugin restart
-			return fmt.Sprintf("Plugin %s restarted", pluginID), nil
+			if r.daemonClient == nil {
+				return fmt.Sprintf("Daemon not connected. Cannot restart plugin %s.", pluginID), nil
+			}
+			_, err := r.daemonClient.Call(ctx, "plugin.restart", map[string]interface{}{"name": pluginID})
+			if err != nil {
+				return fmt.Sprintf("Error restarting plugin: %v", err), nil
+			}
+			return fmt.Sprintf("Plugin %s restarted successfully", pluginID), nil
 		},
 	})
 }

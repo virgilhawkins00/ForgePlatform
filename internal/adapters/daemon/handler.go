@@ -878,12 +878,17 @@ func (s *Server) handleWorkflowStatus(ctx context.Context, params map[string]int
 		return nil, fmt.Errorf("execution_id is required")
 	}
 
-	// TODO: Implement execution lookup
-	return map[string]interface{}{
-		"id":     executionID,
-		"status": "unknown",
-		"error":  "execution repository not implemented",
-	}, nil
+	id, err := uuid.Parse(executionID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid execution_id: %w", err)
+	}
+
+	exec, err := s.workflowSvc.GetExecution(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return executionToMap(exec), nil
 }
 
 // handleWorkflowCancel cancels a running workflow.
@@ -893,17 +898,47 @@ func (s *Server) handleWorkflowCancel(ctx context.Context, params map[string]int
 		return nil, fmt.Errorf("execution_id is required")
 	}
 
-	// TODO: Parse UUID and cancel
+	id, err := uuid.Parse(executionID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid execution_id: %w", err)
+	}
+
+	if err := s.workflowSvc.Cancel(id); err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
 		"status": "cancelled",
+		"id":     executionID,
 	}, nil
 }
 
 // handleWorkflowHistory gets workflow execution history.
 func (s *Server) handleWorkflowHistory(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	// TODO: Implement history query
+	workflowName, _ := params["workflow_name"].(string)
+	limitF, _ := params["limit"].(float64)
+	limit := int(limitF)
+	if limit <= 0 {
+		limit = 10
+	}
+
+	filter := ports.ExecutionFilter{
+		WorkflowName: workflowName,
+		Limit:        limit,
+	}
+
+	executions, err := s.workflowSvc.ListExecutions(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	var list []interface{}
+	for _, e := range executions {
+		list = append(list, executionToMap(e))
+	}
+
 	return map[string]interface{}{
-		"executions": []interface{}{},
+		"executions": list,
 	}, nil
 }
 

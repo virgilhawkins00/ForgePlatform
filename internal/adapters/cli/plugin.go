@@ -112,59 +112,157 @@ func init() {
 }
 
 func runPluginList(cmd *cobra.Command, args []string) error {
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	resp, err := client.Call(cmd.Context(), "plugin.list", nil)
+	if err != nil {
+		return fmt.Errorf("failed to list plugins: %w", err)
+	}
+
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response type")
+	}
+
+	plugins, ok := resMap["plugins"].([]interface{})
+	if !ok || len(plugins) == 0 {
+		fmt.Println("Installed Plugins:")
+		fmt.Println("(no plugins installed)")
+		return nil
+	}
+
 	fmt.Println("Installed Plugins:")
 	fmt.Println("Name             | Version | Status   | Permissions")
 	fmt.Println("-----------------|---------|----------|------------------")
-	fmt.Println("(no plugins installed)")
+	for _, p := range plugins {
+		pl := p.(map[string]interface{})
+		fmt.Printf("%-16s | %-7s | %-8s | %s\n",
+			pl["name"], pl["version"], pl["status"], pl["permissions"])
+	}
 	return nil
 }
 
 func runPluginInstall(cmd *cobra.Command, args []string) error {
 	path := args[0]
 
-	// TODO: Validate and install plugin
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
 	fmt.Printf("Installing plugin from: %s\n", path)
 	fmt.Println("  Validating WASM binary...")
 	fmt.Println("  Reading manifest...")
 	fmt.Println("  Verifying permissions...")
-	fmt.Println("✓ Plugin installed successfully")
 
+	_, err = client.Call(cmd.Context(), "plugin.install", map[string]interface{}{
+		"path": path,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to install plugin: %w", err)
+	}
+
+	fmt.Println("✓ Plugin installed successfully")
 	return nil
 }
 
 func runPluginUninstall(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	// TODO: Uninstall plugin
-	fmt.Printf("✓ Plugin '%s' uninstalled\n", name)
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
 
+	_, err = client.Call(cmd.Context(), "plugin.uninstall", map[string]interface{}{
+		"name": name,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to uninstall plugin: %w", err)
+	}
+
+	fmt.Printf("✓ Plugin '%s' uninstalled\n", name)
 	return nil
 }
 
 func runPluginEnable(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	// TODO: Enable plugin
-	fmt.Printf("✓ Plugin '%s' enabled\n", name)
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
 
+	_, err = client.Call(cmd.Context(), "plugin.enable", map[string]interface{}{
+		"name": name,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enable plugin: %w", err)
+	}
+
+	fmt.Printf("✓ Plugin '%s' enabled\n", name)
 	return nil
 }
 
 func runPluginDisable(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	// TODO: Disable plugin
-	fmt.Printf("✓ Plugin '%s' disabled\n", name)
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
 
+	_, err = client.Call(cmd.Context(), "plugin.disable", map[string]interface{}{
+		"name": name,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to disable plugin: %w", err)
+	}
+
+	fmt.Printf("✓ Plugin '%s' disabled\n", name)
 	return nil
 }
 
 func runPluginInfo(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	// TODO: Get plugin info
-	fmt.Printf("Plugin: %s\n", name)
-	fmt.Println("(plugin not found)")
+	client, err := newDaemonClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	resp, err := client.Call(cmd.Context(), "plugin.info", map[string]interface{}{
+		"name": name,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get plugin info: %w", err)
+	}
+
+	resMap, ok := resp.(map[string]interface{})
+	if !ok {
+		fmt.Printf("Plugin: %s\n(plugin not found)\n", name)
+		return nil
+	}
+
+	if plugin, ok := resMap["plugin"].(map[string]interface{}); ok {
+		fmt.Printf("Plugin: %s\n", plugin["name"])
+		fmt.Printf("  Version:     %s\n", plugin["version"])
+		fmt.Printf("  Status:      %s\n", plugin["status"])
+		fmt.Printf("  Author:      %s\n", plugin["author"])
+		fmt.Printf("  Description: %s\n", plugin["description"])
+		fmt.Printf("  Permissions: %s\n", plugin["permissions"])
+	} else {
+		fmt.Printf("Plugin: %s\n(plugin not found)\n", name)
+	}
 
 	return nil
 }
