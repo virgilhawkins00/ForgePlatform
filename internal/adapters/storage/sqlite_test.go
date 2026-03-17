@@ -136,7 +136,7 @@ func TestDB_BeginTx(t *testing.T) {
 	if tx == nil {
 		t.Error("expected non-nil transaction")
 	}
-	tx.Rollback()
+	_ = tx.Rollback()
 }
 
 func TestNewTaskRepository(t *testing.T) {

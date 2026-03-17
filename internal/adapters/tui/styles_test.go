@@ -61,10 +61,10 @@ func TestRenderStatus_Unknown(t *testing.T) {
 func TestStyles_NotNil(t *testing.T) {
 	// Test that styles are properly initialized
 	if activeTabStyle.String() == "" {
-		// Style should render something (empty string is ok for render)
+		t.Log("activeTabStyle rendered empty string")
 	}
 	if inactiveTabStyle.String() == "" {
-		// Style should render something
+		t.Log("inactiveTabStyle rendered empty string")
 	}
 }
 

@@ -151,8 +151,8 @@ func TestTaskService_ListTasks(t *testing.T) {
 	logger := &mockLogger{}
 	svc := NewTaskService(repo, logger)
 
-	svc.CreateTask(context.Background(), domain.TaskTypeMetricIngest, nil)
-	svc.CreateTask(context.Background(), domain.TaskTypeAIAnalysis, nil)
+	_, _ = svc.CreateTask(context.Background(), domain.TaskTypeMetricIngest, nil)
+	_, _ = svc.CreateTask(context.Background(), domain.TaskTypeAIAnalysis, nil)
 
 	tasks, err := svc.ListTasks(context.Background(), ports.TaskFilter{})
 

@@ -167,7 +167,7 @@ func TestPluginRegistry_GetVersions_NoIndex(t *testing.T) {
 
 	// Get versions with no index loaded
 	versions := registry.GetVersions("test-plugin")
-	if versions != nil && len(versions) != 0 {
+	if len(versions) != 0 {
 		t.Errorf("expected nil or empty versions, got %v", versions)
 	}
 }

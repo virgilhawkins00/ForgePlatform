@@ -260,7 +260,7 @@ func TestAuthService_CreateUser_Duplicate(t *testing.T) {
 	)
 
 	// Create first user
-	svc.CreateUser(context.Background(), "testuser", "test@example.com", "password123", domain.RoleOperator)
+	_, _ = svc.CreateUser(context.Background(), "testuser", "test@example.com", "password123", domain.RoleOperator)
 
 	// Try to create duplicate
 	_, err := svc.CreateUser(context.Background(), "testuser", "other@example.com", "password123", domain.RoleOperator)
@@ -283,7 +283,7 @@ func TestAuthService_Login(t *testing.T) {
 	)
 
 	// Create user first
-	svc.CreateUser(context.Background(), "testuser", "test@example.com", "password123", domain.RoleOperator)
+	_, _ = svc.CreateUser(context.Background(), "testuser", "test@example.com", "password123", domain.RoleOperator)
 
 	// Login
 	session, token, err := svc.Login(context.Background(), "testuser", "password123", "127.0.0.1", "TestAgent")
@@ -310,7 +310,7 @@ func TestAuthService_Login_InvalidPassword(t *testing.T) {
 		&mockLogger{},
 	)
 
-	svc.CreateUser(context.Background(), "testuser", "test@example.com", "password123", domain.RoleOperator)
+	_, _ = svc.CreateUser(context.Background(), "testuser", "test@example.com", "password123", domain.RoleOperator)
 
 	_, _, err := svc.Login(context.Background(), "testuser", "wrongpassword", "127.0.0.1", "TestAgent")
 
@@ -331,7 +331,7 @@ func TestAuthService_Logout(t *testing.T) {
 		&mockLogger{},
 	)
 
-	svc.CreateUser(context.Background(), "testuser", "test@example.com", "password123", domain.RoleOperator)
+	_, _ = svc.CreateUser(context.Background(), "testuser", "test@example.com", "password123", domain.RoleOperator)
 	session, _, _ := svc.Login(context.Background(), "testuser", "password123", "127.0.0.1", "TestAgent")
 
 	err := svc.Logout(context.Background(), session.ID)
