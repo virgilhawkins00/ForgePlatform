@@ -2,6 +2,8 @@
 package wasm
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -24,8 +26,9 @@ func TestRuntimeOptions_Defaults(t *testing.T) {
 }
 
 func TestRuntimeOptions_CustomValues(t *testing.T) {
+	pluginsDir := filepath.Join(os.TempDir(), "plugins")
 	opts := RuntimeOptions{
-		DataDir:      "/tmp/plugins",
+		DataDir:      pluginsDir,
 		HTTPTimeout:  60 * time.Second,
 		EventBufSize: 500,
 		Config: map[string]string{
@@ -34,7 +37,7 @@ func TestRuntimeOptions_CustomValues(t *testing.T) {
 		AllowedHosts: []string{"api.example.com"},
 	}
 
-	if opts.DataDir != "/tmp/plugins" {
+	if opts.DataDir != pluginsDir {
 		t.Error("DataDir mismatch")
 	}
 	if opts.HTTPTimeout != 60*time.Second {

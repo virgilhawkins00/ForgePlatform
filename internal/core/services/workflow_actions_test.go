@@ -3,6 +3,8 @@ package services
 
 import (
 	"context"
+	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -10,17 +12,21 @@ import (
 )
 
 func TestNewShellAction(t *testing.T) {
-	action := NewShellAction("/tmp")
+	tmpDir := os.TempDir()
+	action := NewShellAction(tmpDir)
 
 	if action == nil {
 		t.Fatal("expected non-nil shell action")
 	}
-	if action.workDir != "/tmp" {
-		t.Errorf("expected workDir '/tmp', got '%s'", action.workDir)
+	if action.workDir != tmpDir {
+		t.Errorf("expected workDir '%s', got '%s'", tmpDir, action.workDir)
 	}
 }
 
 func TestShellAction_Execute(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Shell action uses sh -c which is not available on Windows")
+	}
 	action := NewShellAction("")
 
 	step := &domain.WorkflowStep{
@@ -53,6 +59,9 @@ func TestShellAction_Execute(t *testing.T) {
 }
 
 func TestShellAction_Execute_WithVariables(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Shell action uses sh -c which is not available on Windows")
+	}
 	action := NewShellAction("")
 
 	step := &domain.WorkflowStep{
@@ -75,6 +84,9 @@ func TestShellAction_Execute_WithVariables(t *testing.T) {
 }
 
 func TestShellAction_Execute_NoCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Shell action uses sh -c which is not available on Windows")
+	}
 	action := NewShellAction("")
 
 	step := &domain.WorkflowStep{

@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
 func TestDefaultConfig(t *testing.T) {
-	forgeDir := "/tmp/forge-test"
+	forgeDir := filepath.Join(os.TempDir(), "forge-test")
 	cfg := DefaultConfig(forgeDir)
 
 	expectedSocket := filepath.Join(forgeDir, "forge.sock")
@@ -118,15 +119,15 @@ func TestResponse_WithError(t *testing.T) {
 
 func TestConfig_Fields(t *testing.T) {
 	cfg := Config{
-		SocketPath:      "/var/run/forge.sock",
-		PIDFile:         "/var/run/forge.pid",
-		DataDir:         "/var/lib/forge",
+		SocketPath:      filepath.Join(os.TempDir(), "forge.sock"),
+		PIDFile:         filepath.Join(os.TempDir(), "forge.pid"),
+		DataDir:         filepath.Join(os.TempDir(), "forge-data"),
 		ShutdownTimeout: 30000000000, // 30 seconds
 		WorkerCount:     8,
 		HTTPPort:        "8080",
 	}
 
-	if cfg.SocketPath != "/var/run/forge.sock" {
+	if cfg.SocketPath != filepath.Join(os.TempDir(), "forge.sock") {
 		t.Error("SocketPath field mismatch")
 	}
 	if cfg.WorkerCount != 8 {
@@ -145,6 +146,9 @@ func TestVersion(t *testing.T) {
 }
 
 func TestNewClient_MissingSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix sockets not supported on Windows")
+	}
 	// Create a temp dir without socket
 	tmpDir, err := os.MkdirTemp("", "forge-test-*")
 	if err != nil {
