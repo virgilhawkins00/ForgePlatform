@@ -377,7 +377,9 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) (interface{}, 
 
 
 	case "plugin.list":
-		// TODO: Implement plugin listing
+		// Plugin listing returns loaded WASM plugins.
+		// Currently returns empty as plugins are loaded on-demand via
+		// the WASM runtime and not yet persisted in the daemon server.
 		return map[string]interface{}{"plugins": []interface{}{}}, nil
 
 	case "ai.chat":
